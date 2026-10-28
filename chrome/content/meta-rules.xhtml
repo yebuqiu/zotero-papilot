@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot · 元数据体检（规则补齐）"
+        windowtype="papilot:metarules"
+        width="1100" height="740">
+  <script src="chrome://papilot/content/meta-rules-ui.js"></script>
+  <vbox flex="1" style="padding:12px;">
+    <hbox style="gap:12px;align-items:center;flex-wrap:wrap;">
+      <html:label style="font-size:12.5px;"><html:input type="radio" name="pp-mr-scope" id="pp-mr-scope-sel" checked="checked"/> 扫描选中条目</html:label>
+      <html:label style="font-size:12.5px;"><html:input type="radio" name="pp-mr-scope" id="pp-mr-scope-lib"/> 扫描整个库</html:label>
+      <html:span style="color:var(--fill-tertiary,#999);">｜</html:span>
+      <html:label style="font-size:12.5px;">期刊名方向
+        <html:select id="pp-mr-dir" style="margin-left:4px;">
+          <html:option value="expand">缩写 → 全称</html:option>
+          <html:option value="abbrev">全称 → 缩写</html:option>
+          <html:option value="both">两方向都转</html:option>
+          <html:option value="off">不处理期刊名</html:option>
+        </html:select>
+      </html:label>
+      <html:button id="pp-mr-run" style="font-weight:bold;">开始扫描</html:button>
+      <html:button id="pp-mr-save">存为报告笔记</html:button>
+      <spacer flex="1"/>
+      <html:span id="pp-mr-status" style="color:var(--fill-secondary,#666);font-size:12.5px;"></html:span>
+      <html:button id="pp-mr-close">关闭</html:button>
+    </hbox>
+
+    <html:div id="pp-mr-hint" style="font-size:12px;color:var(--fill-secondary,#666);margin-top:6px;">
+      规则：期刊缩写/全称互转 · 期刊尾随句点 · 标题空白归一 · 作者名归一化（单栏拆分 / 逗号逆序 / 全角空格 / 尾随句点） · 页码与卷号格式 · DOI 有效性 · 类型必备字段 · 重复 DOI。
+      勾选后才会写库；带 ⚠ 的是提示项，需人工核实，不会自动修改。
+    </html:div>
+
+    <vbox id="pp-mr-list" flex="1"
+      style="overflow:auto;border:1px solid var(--fill-tertiary,#999);padding:8px;margin-top:8px;background:var(--material-surface,#fff);color:var(--fill-primary,#222);font-size:13px;"/>
+
+    <hbox style="gap:10px;align-items:center;margin-top:8px;">
+      <html:button id="pp-mr-all">全选可修复项</html:button>
+      <html:button id="pp-mr-none">全不选</html:button>
+      <spacer flex="1"/>
+      <html:span id="pp-mr-sum" style="color:var(--fill-secondary,#666);font-size:12.5px;"></html:span>
+      <html:button id="pp-mr-apply" style="font-weight:bold;">修复勾选项</html:button>
+    </hbox>
+  </vbox>
+</window>

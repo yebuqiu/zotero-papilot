@@ -1,0 +1,99 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui" onLoad="PPApp.OnAddinLoad">
+    <ribbon startFromScratch="false">
+        <tabs>
+            <tab id="ppcTab" label="Papilot 引用">
+                <group id="ppcCiteGroup" label="引用">
+                    <button id="btnCite" label="插入/编辑文献" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" size="large"
+                            screentip="插入新引文，或编辑光标所在的已有引文" supertip="标题：插入/编辑文献&#10;说明：打开 Zotero 的「添加/编辑引文」框。选中已有引文角标或把光标放入其中，再点此按钮即可增删文献。"/>
+                    <button id="btnBib" label="插入/更新文献表" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" size="large"
+                            screentip="在文末生成或更新参考文献表" supertip="标题：插入/更新文献表&#10;说明：已有文献表就更新它，没有才新建一张。"/>
+                    <button id="btnRefresh" label="刷新" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" size="large"
+                            screentip="重排编号、正文与文献表" supertip="标题：刷新&#10;说明：改了文献库或换了样式后，点它全文重排，并同步「谁引用了谁」的台账。"/>
+                    <menu id="menuCurrentCitation" label="当前引文" getImage="PPApp.GetImage"
+                          screentip="处理光标所在的引文" supertip="集中提供引文操作、回到原文、跨文档引用与批量打开；先选中或点击一条引文。">
+                        <button id="btnContext" label="引文操作…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="当前引文快捷面板" supertip="编辑、转参考文献、Zotero、PDF 和引用信息；无原生右键 API 时使用此入口。"/>
+                        <button id="btnLocator" label="编辑页码与 PDF 定位…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="编辑正文 locator、PDF 页码和高亮标注" supertip="修改 locator 后由 Zotero 刷新；PDF 页码与标注按文档保存，用于精确回到原文。"/>
+                        <button id="btnGoto" label="回到原文" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="跳到 PDF 的对应页或高亮" supertip="标题：回到原文&#10;说明：光标放在引文里，点它让 Zotero 打开该条目的 PDF 并定位到当初引用的那一页（有标注时精确到高亮）。"/>
+                        <button id="btnFind" label="查看其他文档的引用" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="看还有哪些文档引用了它" supertip="标题：查看引用&#10;说明：读取本机台账，列出其它文档对同一文献（同一页）的引用，可直接打开。"/>
+                        <button id="btnBatch" label="批量打开当前引文…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="批量打开当前引文的 Zotero/PDF/DOI/附件" supertip="标题：批量打开&#10;说明：按条目身份去重，默认最多 10 项，超出先确认；逐项返回成功/跳过/失败，只允许重试失败项。"/>
+                    </menu>
+                </group>
+                <group id="ppcStyleGroup" label="样式与导航">
+                    <button id="btnPrefs" label="文档首选项…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" size="large"
+                            screentip="选择 GB/T、APA、IEEE、Nature 等样式并设置语言" supertip="标题：文档首选项&#10;说明：统一设置引用样式、语言与注文制。GB/T 7714、APA、IEEE、Nature 等常用样式均可在这里选择。"/>
+                    <menu id="menuStyles" label="常用样式" getImage="PPApp.GetImage"
+                          screentip="一键切换样式并刷新" supertip="四种常用样式直接切换；下方按文档保留最近三种成功切换的样式。">
+                        <button id="btnStyleGB" label="GB/T 7714" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" visible="true" screentip="一键切换并刷新"/>
+                        <button id="btnStyleAPA" label="APA" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" visible="true" screentip="一键切换并刷新"/>
+                        <button id="btnStyleNature" label="Nature" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" visible="true" screentip="一键切换并刷新"/>
+                        <button id="btnStyleIEEE" label="IEEE" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" visible="true" screentip="一键切换并刷新"/>
+                        <button id="btnRecent1" label="最近样式（暂无）" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" getEnabled="PPApp.GetEnabled" visible="true"/>
+                        <button id="btnRecent2" label="最近样式（暂无）" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" getEnabled="PPApp.GetEnabled" visible="true"/>
+                        <button id="btnRecent3" label="最近样式（暂无）" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" getEnabled="PPApp.GetEnabled" visible="true"/>
+                        <button id="btnFavorite1" label="收藏样式（未设置）" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" getEnabled="PPApp.GetEnabled" visible="true"/>
+                        <button id="btnFavorite2" label="收藏样式（未设置）" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" getEnabled="PPApp.GetEnabled" visible="true"/>
+                        <button id="btnFavorite3" label="收藏样式（未设置）" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getLabel="PPApp.GetLabel" getEnabled="PPApp.GetEnabled" visible="true"/>
+                        <button id="btnStyleFavorites" label="管理样式收藏…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="收藏当前样式或填写 Zotero 样式 ID，最多三项，按文档保存"/>
+                    </menu>
+                    <button id="btnNavList" label="引文管理" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" size="large"
+                            screentip="搜索、定位、编辑全部引文" supertip="一行一个物理引文域；无任务窗格时退化为对话框或基础列表。"/>
+                    <menu id="menuNavigation" label="引文导航" getImage="PPApp.GetImage"
+                          screentip="在引文、同文献引用位置和文献表之间跳转" supertip="顺序导航、返回来源、同文献遍历与正文和文献表双向跳转统一放在这里。">
+                        <button id="btnNavPrev" label="上一条引文" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="跳到光标之前的最后一条引文" supertip="标题：上一条引文&#10;说明：长文档改稿时按顺序过一遍引文。到头会回到最后一条。"/>
+                        <button id="btnNavNext" label="下一条引文" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="跳到光标之后的第一条引文" supertip="标题：下一条引文&#10;说明：到头会回到第一条。"/>
+                        <button id="btnNavBack" label="返回跳转前位置" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" screentip="最多保存 20 次来源位置"/>
+                        <button id="btnSamePrev" label="同文献上一处" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" screentip="循环遍历当前文献的引用位置"/>
+                        <button id="btnSameNext" label="同文献下一处" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" screentip="循环遍历当前文献的引用位置"/>
+                        <button id="btnToBib" label="转至参考文献" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="从正文引文跳到对应的参考文献条目" supertip="标题：转至参考文献&#10;说明：光标放在正文引文角标中，点此跳到文末对应条目；一处多篇时可选择。"/>
+                        <button id="btnToCitation" label="返回正文引文" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="从参考文献条目跳回正文引用位置" supertip="标题：返回正文引文&#10;说明：光标放在参考文献条目中，点此返回正文引用处；多处引用时可选择。"/>
+                    </menu>
+                </group>
+                <group id="ppcToolGroup" label="检查与工具">
+                    <button id="btnPreflight" label="投稿前检查" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true" size="large"
+                            screentip="只读核对正文、注文与文献表数量，列出未引/重复/缺页码 DOI" supertip="标题：投稿前检查&#10;说明：输出引文域数、唯一文献数、文献表条目数与差异；页码/DOI 只按文献类型给建议，书籍与网页不误报。报告可定位、可导出，不修改原稿。"/>
+                    <menu id="menuChecks" label="检查与状态" getImage="PPApp.GetImage"
+                          screentip="文档体检、迁移兼容与刷新状态" supertip="三项均为只读检查；不会修改文档内容。">
+                        <button id="btnHealth" label="文档体检" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="只读检查六类引文异常" supertip="标题：文档体检&#10;说明：检查缺失条目、重复身份、坏域、未刷新、手改和无法跳转；不会修改文档。"/>
+                        <button id="btnCompat" label="迁移兼容检查…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="Word/WPS/LibreOffice 迁移前只读检查" supertip="标题：迁移兼容检查&#10;说明：依据域方言、文档数据、注文覆盖、文献表锚点、截断风险与能力矩阵，给出可直接迁移/需重连/纯文本副本/未验证。不自动转换、不保存。"/>
+                        <button id="btnRefreshStatus" label="查看刷新状态" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="查看本文档上次刷新结果和域计数" supertip="显示成功、无变化、取消或失败状态；各文档独立保存。"/>
+                    </menu>
+                    <menu id="menuDocumentTools" label="文献与文档" getImage="PPApp.GetImage"
+                          screentip="未引文献、无域副本、修改记录与自动化" supertip="文献表补充、文档副本和操作记录集中在这里；自动化仅在本机 WPS 支持文档事件时显示。">
+                        <button id="btnUncited" label="补入未引用文献…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="把读过但正文没引用的文献补进文末文献表" supertip="标题：补入未引用文献&#10;说明：先插好引文和文献表，再用关键词检索库里的条目，选中后它会出现在文献表里（不占正文编号）。"/>
+                        <button id="btnChapterBib" label="生成/更新分章文献表…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="按标题 1 分章生成静态参考文献快照" supertip="从当前总文献表提取各章唯一条目并保留当前编号；至少两个章节含正文引文。重复点击可更新，不随 Zotero 自动刷新。"/>
+                        <button id="btnUnlinked" label="另存无域副本…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="另存一份不含 Zotero 域的 docx 副本" supertip="标题：无域副本&#10;说明：先另存为 &lt;原名&gt;_无引文域.docx（代理检查重名，绝不静默覆盖），只移除副本中的 Zotero 引文/文献表域并保留显示文本；原稿的域代码、文档数据与修改状态逐字不变。"/>
+                        <button id="btnAudit" label="修改记录…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="查看、导出或清空本文档的引文修改记录" supertip="标题：修改记录&#10;说明：每条操作只记一条结果（取消不记），每文档最多 200 条；导出与清空需要确认，不含完整正文。"/>
+                        <button id="btnAutomation" label="自动化设置…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" getVisible="PPApp.GetVisible" visible="true"
+                                screentip="打开检查与保存后自动刷新" supertip="两项默认关闭；无文档事件 API 时此入口隐藏。"/>
+                    </menu>
+                    <menu id="menuSupport" label="支持" getImage="PPApp.GetImage"
+                          screentip="诊断包、版本与许可" supertip="报障时先导出诊断包；关于中可查看加载项版本与许可。">
+                        <button id="btnConnection" label="连接状态与修复…" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="检查代理、Zotero 与本地 API，提供启动和设置指引" supertip="代理未运行时显示启动脚本；Zotero 未运行时可在连接中心直接启动；本地 API 设置不会被静默修改。"/>
+                        <button id="btnDiag" label="导出诊断包" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="导出一份排障用的诊断包" supertip="标题：导出诊断包&#10;说明：把版本、文档里的域清单、代理日志尾部打成一个 zip，报障时把它发给我们即可。"/>
+                        <button id="btnAbout" label="关于 Papilot Cite" onAction="PPApp.OnAction" getImage="PPApp.GetImage" visible="true"
+                                screentip="版本与许可" supertip="标题：关于&#10;说明：版本、依赖与许可说明。"/>
+                    </menu>
+                </group>
+            </tab>
+        </tabs>
+    </ribbon>
+</customUI>

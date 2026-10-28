@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Papilot 引文中心</title>
+  <link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <nav class="view-tabs" aria-label="引文中心视图">
+    <button type="button" data-view="citations">引文</button>
+    <button type="button" data-view="checks">检查与修复</button>
+    <button type="button" data-view="crossdoc">跨文档</button>
+    <button type="button" data-view="settings">连接与方案</button>
+  </nav>
+
+  <div id="view-citations" class="view">
+    <header>
+      <input id="query" type="search" placeholder="搜索标题、作者、年份、正文、页码或章节" aria-label="搜索引文">
+      <label><input id="abnormal" type="checkbox"> 仅异常</label>
+      <button type="button" id="rescan">重新扫描</button>
+    </header>
+    <div id="refresh-status" role="status">刷新状态读取中…</div>
+    <details id="batch-bar">
+      <summary><span>批量打开勾选项</span><strong id="sel-count">已选 0 项</strong></summary>
+      <div class="batch-content" role="group" aria-label="批量打开勾选项">
+        <button type="button" data-kind="zotero">打开 Zotero</button>
+        <button type="button" data-kind="pdf">打开最佳 PDF</button>
+        <button type="button" data-kind="doi">打开 DOI</button>
+        <button type="button" data-kind="attachment">打开附件</button>
+        <span class="batch-hint">按条目去重，默认最多 10 项；超出会先确认，失败项可单独重试。</span>
+      </div>
+    </details>
+    <div id="status" role="status">正在读取引文…</div>
+    <main><table>
+      <thead><tr><th></th><th>#</th><th>正文显示</th><th>标题 / 第一作者 / 年份</th><th>locator</th><th>章节</th><th>容器</th><th>异常</th><th>操作</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></main>
+    <footer>每行代表一个物理引文域；多篇条目可展开。定位、编辑与打开原文由主页面串行执行。</footer>
+  </div>
+
+  <section id="view-checks" class="view" hidden>
+    <header class="section-tools">
+      <select id="check-kind" aria-label="检查类型">
+        <option value="health">文档体检</option><option value="preflight">投稿前检查</option><option value="compatibility">迁移兼容检查</option>
+      </select>
+      <select id="compat-target" aria-label="目标编辑器" hidden><option value="word">Word</option><option value="wps">WPS</option><option value="libreoffice">LibreOffice</option></select>
+      <select id="profile-select" aria-label="投稿方案" hidden><option value="">通用检查（不套用方案）</option></select>
+      <button type="button" id="run-check" class="primary">开始检查</button>
+      <button type="button" id="apply-profile" hidden>套用样式并检查</button>
+      <button type="button" id="export-center-report">导出报告</button>
+    </header>
+    <details id="profile-editor">
+      <summary>投稿方案设置</summary>
+      <div class="form-grid">
+        <label>方案名称 <input id="profile-name" maxlength="60" placeholder="例如：目标期刊 A"></label>
+        <label class="check-row"><input id="profile-style" type="checkbox"> 包含当前样式</label>
+        <label class="check-row"><input id="profile-doi" type="checkbox" checked> 检查 DOI</label>
+        <label class="check-row"><input id="profile-pages" type="checkbox" checked> 检查页码</label>
+        <label class="check-row"><input id="profile-uncited" type="checkbox" checked> 检查未引条目</label>
+        <input id="profile-id" type="hidden">
+        <div class="inline-actions"><button type="button" id="save-profile">保存方案</button><button type="button" id="delete-profile">删除当前方案</button></div>
+      </div>
+    </details>
+    <div id="center-message" role="status">选择检查类型后开始。</div>
+    <div class="report-toolbar"><strong id="report-summary">尚未生成报告</strong><input id="finding-filter" type="search" placeholder="筛选问题" aria-label="筛选检查结果"></div>
+    <main id="findings" class="finding-list"></main>
+    <aside id="repair-panel" hidden>
+      <h2>重连预览</h2><div id="repair-preview"></div>
+    </aside>
+  </section>
+
+  <section id="view-crossdoc" class="view" hidden>
+    <header class="section-tools">
+      <input id="crossdoc-query" type="search" placeholder="筛选文档路径、条目 key 或正文" aria-label="筛选跨文档引用">
+      <button type="button" id="reload-crossdoc">刷新总览</button>
+      <button type="button" id="crossdoc-health" class="primary">体检已打开文档</button>
+    </header>
+    <div id="crossdoc-status" role="status">读取本机引用台账…</div>
+    <main class="crossdoc-scroll"><div id="crossdoc-documents"></div><div id="crossdoc-health-rows"></div><div id="crossdoc-records"></div></main>
+  </section>
+
+  <section id="view-settings" class="view" hidden>
+    <div id="settings-message" role="status"></div>
+    <main class="settings-scroll">
+      <section class="settings-card">
+        <h2>连接状态与修复</h2><div id="connection-status" role="status">正在检查…</div>
+        <div class="inline-actions"><button type="button" id="connection-recheck">重新检查</button><button type="button" id="start-zotero" class="primary">启动 Zotero</button></div>
+        <ol class="help-text"><li>代理未运行：先执行安装目录中的 PapilotCite/start-proxy.bat，再打开本页。</li><li>本地 API 未开启：Zotero → 设置 → 高级 → 允许其他应用程序与 Zotero 通信。</li><li>启动后点击“重新检查”；不会静默修改 Zotero 设置。</li></ol>
+      </section>
+      <section class="settings-card">
+        <h2>投稿方案</h2><p class="help-text">方案在“检查与修复”页编辑，按文档保存，最多 8 套。</p>
+      </section>
+      <section class="settings-card">
+        <h2>自定义样式收藏</h2><p class="help-text">最多 3 项，出现在“常用样式”菜单。可收藏当前样式，或填写完整 Zotero 样式 ID。</p>
+        <div id="favorite-rows"></div>
+      </section>
+    </main>
+  </section>
+
+  <section id="view-locator" class="view" hidden>
+    <main class="settings-scroll">
+      <section class="settings-card">
+        <h2>页码与 PDF 定位</h2><p class="help-text">正文 locator 会写入引文并由 Zotero 刷新；PDF 页码和标注按文档保存，用于“回到原文”。</p>
+        <div class="form-grid locator-grid">
+          <label>文献 <select id="locator-items"></select></label>
+          <label>正文 locator <input id="locator-text" maxlength="80" placeholder="例如 42-45 或 chap. 3"></label>
+          <label>locator 类型 <select id="locator-label"><option value="">默认（页码）</option><option value="page">page</option><option value="chapter">chapter</option><option value="section">section</option><option value="paragraph">paragraph</option></select></label>
+          <label>PDF 页码 <input id="locator-page" type="number" min="0" max="99999" value="0"></label>
+          <label>高亮标注 <select id="locator-annotation"><option value="">不指定标注</option></select></label>
+        </div>
+        <div id="locator-info" role="status"></div>
+        <div class="inline-actions"><button type="button" id="save-locator" class="primary">保存并刷新</button></div>
+      </section>
+    </main>
+  </section>
+
+  <script src="js/manager-page.js"></script>
+  <script src="js/center-page.js"></script>
+</body>
+</html>

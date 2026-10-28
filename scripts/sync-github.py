@@ -1,0 +1,232 @@
+#!/usr/bin/env python
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Cassiuschen. All rights reserved.
+
+# -*- coding: utf-8 -*-
+"""把本地 git 仓库的当前 HEAD 树同步到 GitHub（REST API 通道）。
+
+背景：本机网络长期阻断 github.com 的 git 协议（curl/ls-remote 挂死），
+但 api.github.com 通畅——因此走 REST API 重建一次提交（blobs → tree →
+commit → PATCH ref）。树内容与本地等价，但提交 SHA 与本地不同（无历史）。
+
+用法（在仓库根目录）：
+    python scripts/sync-github.py            # 同步 HEAD → refs/heads/main
+    python scripts/sync-github.py --dry-run  # 只打印计划，不写远端
+
+PAT 取自 Windows 凭据管理器（git:https://github.com），无需写进文件。
+
+三个历史坑（已处理）：
+  1. blob 内容必须 `git cat-file blob <sha>` 读 object，不能读工作区文件
+     （工作区 CRLF 与提交内容不一致）；
+  2. `git ls-tree` 必须 `-c core.quotepath=false`，否则中文路径被转义成
+     \\xxx 八进制（会以转义名上传、真实中文名被误删）；
+  3. urllib 对 307 POST 不自动跟随（抛 HTTPError），必须手动带原 body
+     向 Location 重试（blob 上传会被重定向到 objects host）。
+
+增量上传（2026-10-08）：blob 内容寻址 ⇒ 远端树里 path+sha 均未变的条目直接复用，
+不重传。此前全量 264 个 blob，链路抖动时三次同步都在中途被掐；增量后通常只需
+传个位数~几十个。断线重试因此安全且越来越快（已传过的新 blob 不在远端树里，
+仍会重传，但数量有限）。
+"""
+import base64
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
+REPO = os.environ.get("PP_GH_REPO", "yebuqiu/zotero-papilot")
+
+# 不随快照上传的路径前缀（见 local_entries 注释）。若将来要在 GitHub 上
+# 也能直链下载历史 xpi，把 "dist/" 从这里去掉即可，代价是首次全量涨到 187MB。
+SKIP_PREFIXES = ("dist/",)
+BRANCH = "main"
+API = "https://api.github.com"
+COMMIT_MSG_FILE = ".git/COMMIT_EDITMSG"
+
+
+def sh(*args, binary=False, check=True):
+    r = subprocess.run(list(args), capture_output=True)
+    if check and r.returncode != 0:
+        raise SystemExit("命令失败 %s\n%s" % (args, r.stderr.decode("utf-8", "replace")))
+    return r.stdout if binary else r.stdout.decode("utf-8", "replace")
+
+
+def token():
+    """取 GitHub PAT。
+    优先读环境变量 PP_GITHUB_TOKEN —— 本机 git 的 credential.helper 被 WorkBuddy 注入到
+    **system 层**（helper-selector），该链路会漂移：一旦没接上 Windows 凭据管理器，
+    `git credential fill` 要么返回空、要么弹出 GUI 把脚本挂死（已实踩）。
+    环境变量可绕开这条链路，也让自动化可复现。密钥绝不写进仓库。
+    """
+    env = os.environ.get("PP_GITHUB_TOKEN", "").strip()
+    if env:
+        return env
+    r = subprocess.run(
+        ["git", "credential", "fill"],
+        input=b"protocol=https\nhost=github.com\n\n",
+        capture_output=True,
+    )
+    for line in r.stdout.decode("utf-8", "replace").splitlines():
+        if line.startswith("password="):
+            return line[len("password="):].strip()
+    raise SystemExit("未能从凭据管理器取到 github.com 的 PAT（可设 PP_GITHUB_TOKEN 绕过）")
+
+
+def api(method, path, body=None, tok=None):
+    url = API + path if path.startswith("/") else path
+    data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
+    for _ in range(5):
+        req = urllib.request.Request(url, data=data, method=method)
+        req.add_header("Authorization", "Bearer " + tok)
+        req.add_header("Accept", "application/vnd.github+json")
+        req.add_header("User-Agent", "Papilot-Sync")
+        if data:
+            req.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                raw = resp.read().decode("utf-8")
+                return json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as e:
+            # 307/308：手动带原 body 向 Location 重试（urllib 不会自动跟随 POST）
+            if e.code in (301, 302, 307, 308):
+                loc = e.headers.get("Location")
+                if loc:
+                    url = loc
+                    continue
+            # 5xx 是服务端瞬时故障（本次发版实测 POST /git/trees 连续 502）：
+            # 退避重试，别把整次同步判死。blob 是内容寻址，重试天然幂等。
+            if e.code >= 500 and _ < 4:
+                time.sleep(1.5 * (_ + 1))
+                continue
+            detail = e.read().decode("utf-8", "replace")[:500]
+            raise SystemExit("GitHub API %s %s 失败 %s（payload %d B）: %s"
+                             % (method, path, e.code, len(data or b""), detail))
+    raise SystemExit("重定向次数过多: " + path)
+
+
+def local_entries():
+    """HEAD 树的全部 blob：[(path, mode, blob_sha)]，中文路径原样。"""
+    raw = sh("git", "-c", "core.quotepath=false", "ls-tree", "-r", "-z", "HEAD", binary=True)
+    out = []
+    for item in raw.split(b"\x00"):
+        if not item:
+            continue
+        meta, path = item.split(b"\t", 1)
+        mode, typ, sha = meta.decode().split(" ")
+        if typ != "blob":
+            continue
+        p = path.decode("utf-8", "surrogateescape")
+        # 2026-10-28：GitHub 侧只做代码镜像，不承载分发——xpi 走 Gitee raw 与
+        # Release asset。dist/ 有 142 个包、占全树 76%，推上去会让首次全量
+        # （REST 逐 blob）从 45MB 涨到 187MB，耗时与二级限流风险都不划算。
+        if p.startswith(SKIP_PREFIXES):
+            continue
+        out.append((p, mode, sha))
+    return out
+
+
+def main():
+    dry = "--dry-run" in sys.argv
+    entries = local_entries()
+    print("本地 HEAD blob 数：%d" % len(entries))
+
+    tok = token()
+    ref = api("GET", "/repos/%s/git/ref/heads/%s" % (REPO, BRANCH), None, tok)
+    parent = ref["object"]["sha"]
+    parent_tree = parent
+    print("GitHub 当前 %s = %s" % (BRANCH, parent[:10]))
+
+    # 增量上传：blob 内容寻址 ⇒ 远端树里 path+sha 均未变的条目无需重传
+    remote_tree = api("GET", "/repos/%s/git/trees/%s?recursive=1" % (REPO, parent_tree), None, tok)
+    remote_blobs = {e["path"]: e["sha"] for e in remote_tree.get("tree", []) if e["type"] == "blob"}
+
+    # 只把「新增/变更」的条目建进 tree：未变更的交给 base_tree 继承。
+    # 起因：全量 588 条 POST /git/trees 被 GitHub 判 422「input too large」。
+    blob_sha = {}
+    n_reused = 0
+    for i, (path, mode, sha) in enumerate(entries, 1):
+        if dry:
+            continue
+        if remote_blobs.get(path) == sha:
+            blob_sha[path] = sha
+            n_reused += 1
+            continue
+        content = sh("git", "cat-file", "blob", sha, binary=True)
+        blob = api("POST", "/repos/%s/git/blobs" % REPO, {
+            "content": base64.b64encode(content).decode("ascii"),
+            "encoding": "base64",
+        }, tok)
+        # 内容相同则 GitHub 返回同一个 sha（blob 内容寻址）——自检一下
+        if blob["sha"] != sha:
+            print("  ! blob sha 不一致（本地 %s / 远端 %s）: %s" % (sha[:8], blob["sha"][:8], path))
+        blob_sha[path] = blob["sha"]
+        if i % 20 == 0:
+            print("  已处理 %d/%d（复用 %d）" % (i, len(entries), n_reused))
+    if not dry:
+        print("  增量：复用远端 blob %d 个，需上传 %d 个" % (n_reused, len(entries) - n_reused))
+
+    # 与远端树比对路径集合，判断是否需要新提交（remote_blobs 前面已拉取）
+    remote_paths = remote_blobs
+    local_paths = {p: s for p, m, s in entries}
+    added = sorted(set(local_paths) - set(remote_paths))
+    removed = sorted(set(remote_paths) - set(local_paths))
+    changed = sorted(p for p in set(local_paths) & set(remote_paths) if local_paths[p] != remote_paths[p])
+    print("差异：+%d -%d ~%d" % (len(added), len(removed), len(changed)))
+    for p in added:
+        print("  + " + p)
+    for p in removed:
+        print("  - " + p)
+    for p in changed:
+        print("  ~ " + p)
+
+    if dry:
+        print("dry-run：未写远端")
+        return
+    if not (added or removed or changed):
+        print("远端内容已与本地一致，无需提交")
+        return
+
+    # 提交信息取本地 HEAD 的完整 message
+    msg = sh("git", "log", "-1", "--pretty=%B").strip() or "sync from local"
+    mode_of = {p: m for p, m, _ in entries}
+    tree_entries = []
+    for p in added + changed:
+        tree_entries.append({"path": p, "mode": mode_of.get(p, "100644"),
+                             "type": "blob", "sha": blob_sha[p]})
+    for p in removed:
+        tree_entries.append({"path": p, "mode": "100644", "type": "blob", "sha": None})
+
+    # 分片 + base_tree 链：每片 ≤150 条，避免单次请求被判定过大
+    base = parent_tree
+    for i in range(0, len(tree_entries), 150):
+        chunk = tree_entries[i:i + 150]
+        body = {"tree": chunk}
+        if base:
+            body["base_tree"] = base
+        res = api("POST", "/repos/%s/git/trees" % REPO, body, tok)
+        base = res["sha"]
+        print("  建树分片 %d-%d → %s" % (i, i + len(chunk) - 1, base[:10]))
+    new_tree = {"sha": base}
+    commit = api("POST", "/repos/%s/git/commits" % REPO, {
+        "message": msg,
+        "tree": new_tree["sha"],
+        "parents": [parent],
+    }, tok)
+    api("PATCH", "/repos/%s/git/refs/heads/%s" % (REPO, BRANCH), {"sha": commit["sha"], "force": False}, tok)
+    print("已推送 commit %s → %s" % (commit["sha"][:10], BRANCH))
+
+    # 自检：最终 tree 路径集合必须与本地完全一致
+    final = api("GET", "/repos/%s/git/trees/%s?recursive=1" % (REPO, commit["sha"]), None, tok)
+    final_paths = {e["path"] for e in final.get("tree", []) if e["type"] == "blob"}
+    if final_paths != set(local_paths):
+        only_remote = sorted(final_paths - set(local_paths))[:10]
+        only_local = sorted(set(local_paths) - final_paths)[:10]
+        raise SystemExit("自检失败！远端多出 %s，缺少 %s" % (only_remote, only_local))
+    print("自检通过：远端 %d 个 blob 与本地完全一致" % len(final_paths))
+
+
+if __name__ == "__main__":
+    main()

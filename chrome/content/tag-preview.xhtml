@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot · AI 标签"
+        windowtype="papilot:dialog"
+        width="500" height="470">
+  <script src="chrome://papilot/content/tag-preview.js"></script>
+  <vbox flex="1" style="padding:12px;">
+    <label id="pp-tag-title" value="" style="font-weight:bold;"/>
+    <label value="勾选要写入的标签（灰字为依据，百分比为 AI 置信度；低置信度请仔细核对）：" style="margin-top:6px;"/>
+    <vbox id="pp-tag-list" flex="1" style="overflow-y:auto;border:1px solid #999;padding:8px;margin:6px 0;"/>
+    <label id="pp-tag-existing" value="" style="color:#888;font-size:12px;margin:2px 0;"/>
+    <hbox style="gap:8px;">
+      <html:button id="pp-tag-all">全选</html:button>
+      <html:button id="pp-tag-none">清空</html:button>
+      <spacer flex="1"/>
+      <html:button id="pp-tag-ok">确定</html:button>
+      <html:button id="pp-tag-cancel">取消</html:button>
+    </hbox>
+  </vbox>
+</window>

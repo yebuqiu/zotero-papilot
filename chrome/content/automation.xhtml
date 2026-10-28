@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot · 自动化规则（触发 → 条件 → 动作）"
+        windowtype="papilot:automation"
+        width="1020" height="700"
+        persist="screenX screenY width height">
+  <script src="chrome://papilot/content/automation-ui.js"></script>
+  <vbox flex="1" style="padding:10px;">
+    <hbox style="gap:8px;align-items:center;flex-wrap:wrap;">
+      <html:button id="pp-au-new" style="font-weight:bold;">新建规则</html:button>
+      <html:button id="pp-au-import">导入「规则打标」的规则</html:button>
+      <html:button id="pp-au-presets">恢复内置示例</html:button>
+      <spacer flex="1"/>
+      <html:span id="pp-au-status" style="color:var(--fill-secondary,#666);font-size:12.5px;"></html:span>
+      <html:button id="pp-au-close">关闭</html:button>
+    </hbox>
+    <!-- 全局开关（自动触发 + 入库自动精读）：放在这里而不是设置面板，保证「规则 + 开关」一处可控 -->
+    <vbox id="pp-au-switches" style="margin-top:8px;padding:8px 10px;border:1px solid var(--material-border,1px solid #ddd);border-radius:6px;background:var(--material-sidepane,#f7f7f9);"/>
+    <hbox flex="1" style="gap:10px;margin-top:10px;min-height:0;">
+      <vbox style="width:330px;min-width:330px;">
+        <label value="规则列表（勾选=启用）" style="font-size:12px;color:var(--fill-secondary,#666);"/>
+        <vbox id="pp-au-list" flex="1"
+          style="overflow:auto;border:1px solid var(--fill-tertiary,#999);padding:6px;margin-top:4px;background:var(--material-surface,#fff);color:var(--fill-primary,#222);font-size:13px;"/>
+      </vbox>
+      <vbox flex="1" style="min-width:0;">
+        <label value="规则编辑（条件满足后执行动作；AI 动作受每日额度限制）" style="font-size:12px;color:var(--fill-secondary,#666);"/>
+        <vbox id="pp-au-editor" flex="1"
+          style="overflow:auto;border:1px solid var(--fill-tertiary,#999);padding:10px;margin-top:4px;background:var(--material-surface,#fff);color:var(--fill-primary,#222);font-size:13px;"/>
+      </vbox>
+    </hbox>
+  </vbox>
+</window>

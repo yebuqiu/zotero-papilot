@@ -1,0 +1,768 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 Cassiuschen. All rights reserved.
+
+/* Papilot 核心工具：pref 读写 + 简易 i18n + Markdown→笔记 HTML + 笔记助手 + 选中归一化 */
+/* global Zotero, Services */
+
+var Prefs = {
+  PREFIX: "extensions.zotero.papilot.",
+
+  get(key, fallback) {
+    try {
+      const v = Zotero.Prefs.get(this.PREFIX + key, true);
+      return v === undefined || v === null ? fallback : v;
+    } catch (e) {
+      return fallback;
+    }
+  },
+
+  set(key, value) {
+    Zotero.Prefs.set(this.PREFIX + key, value, true);
+  },
+
+  /**
+   * 0.54.1（审查 P0-1）：修「设置看似保存、实际不生效」留下的历史脏数据。
+   *
+   * 成因：调用方把**完整键**交给 `Zotero.Prefs.set(key, v)` 且漏了第三参 `true`，
+   *  Zotero 会再补一次 `extensions.zotero.` → 值落到：
+   *    · `extensions.zotero.extensions.zotero.papilot.X`（完整键重复）
+   *    · `extensions.zotero.extensions.papilot.X`（少写一级 zotero）
+   *  读取端用的是规范键，所以这些值从未被读到。
+   *
+   * 行为：只搬「规范键没有用户值」的项；搬完删旧键。幂等，可每次启动调用。
+   * @returns {number} 实际搬迁条数
+   */
+  migrateLegacyNamespace() {
+    let moved = 0;
+    try {
+      const S = Services.prefs;
+      const canonical = this.PREFIX; // extensions.zotero.papilot.
+      const legacyRoots = [
+        "extensions.zotero.extensions.zotero.papilot.",
+        "extensions.zotero.extensions.papilot.",
+      ];
+      for (const root of legacyRoots) {
+        let kids = [];
+        try { kids = S.getChildList(root) || []; } catch (e) { kids = []; }
+        for (const full of kids) {
+          const leaf = String(full).slice(root.length);
+          if (!leaf) continue;
+          const target = canonical + leaf;
+          try {
+            // 规范键已有用户值 → 以规范键为准，旧键只清理
+            if (!S.prefHasUserValue(target)) {
+              const type = S.getPrefType(full);
+              if (type === S.PREF_STRING) S.setStringPref(target, S.getStringPref(full));
+              else if (type === S.PREF_BOOL) S.setBoolPref(target, S.getBoolPref(full));
+              else if (type === S.PREF_INT) S.setIntPref(target, S.getIntPref(full));
+              else continue;
+              moved++;
+            }
+            S.clearUserPref(full);
+          } catch (e) { /* 单条失败不影响其余 */ }
+        }
+      }
+    } catch (e) { /* 迁移是修补，不是前置条件 */ }
+    return moved;
+  },
+
+  /**
+   * 0.55.0 品牌迁移：PaperPilot → Papilot。
+   *
+   * 改名把 pref 分支从 `extensions.zotero.paperpilot.*` 换成了
+   * `extensions.zotero.papilot.*`。老用户 profile 里的**用户值**（AI Key、
+   * 接口地址、菜单定制、自动化规则等）仍挂在旧分支上，不搬就会表现为
+   * 「升级后设置全没了」。这里只搬旧分支里真实存在的键，规范键已有用户值时
+   * 以规范键为准（便于用户在新版里先改过一次再回滚）。
+   *
+   * 幂等：`brandMigrated` 为 true 直接返回；异常一律吞掉（迁移失败不能挡启动）。
+   * @returns {number} 实际搬迁条数
+   */
+  migrateLegacyBrand() {
+    if (this.get("brandMigrated", false)) return 0;
+    let moved = 0;
+    try {
+      const S = Services.prefs;
+      const legacy = "extensions.zotero.paperpilot.";
+      let kids = [];
+      try { kids = S.getChildList(legacy) || []; } catch (e) { kids = []; }
+      for (const full of kids) {
+        const leaf = String(full).slice(legacy.length);
+        if (!leaf) continue;
+        const target = this.PREFIX + leaf;
+        try {
+          if (!S.prefHasUserValue(target)) {
+            const type = S.getPrefType(full);
+            if (type === S.PREF_STRING) S.setStringPref(target, S.getStringPref(full));
+            else if (type === S.PREF_BOOL) S.setBoolPref(target, S.getBoolPref(full));
+            else if (type === S.PREF_INT) S.setIntPref(target, S.getIntPref(full));
+            else continue;
+            moved++;
+          }
+        } catch (e) { /* 单条失败不影响其余 */ }
+      }
+    } catch (e) { /* 迁移是修补，不是前置条件 */ }
+    try { this.set("brandMigrated", true); } catch (e) { /* 无法落标记时下次再跑，幂等无害 */ }
+    return moved;
+  },
+};
+
+// 轻量 i18n：按 Zotero 界面语言选择文案（菜单等无法走 ftl 的地方用）
+var I18n = (() => {
+  const zh = (Zotero.locale || "").toLowerCase().startsWith("zh");
+  const table = {
+    menuSettings: zh ? "Papilot 设置" : "Papilot Settings",
+    menuCommunity: zh ? "联系与社群" : "Contact & Community",
+    menuConnTest: zh ? "Papilot 接口连通性测试" : "Papilot Connection Test",
+    menuAiNote: zh ? "AI 深度解读所选文献（生成笔记）" : "AI Deep Interpretation (note)",
+    menuAiSummary: zh ? "AI 总结（生成笔记）" : "AI Summary (note)",
+    menuAiTranslate: zh ? "AI 翻译标题与摘要（生成笔记）" : "AI Translate Title & Abstract (note)",
+    connOk: zh ? "✅ 接口连通正常" : "✅ Connection OK",
+    connFail: zh ? "❌ 接口测试失败" : "❌ Connection failed",
+    quickSummary: zh ? "总结本篇" : "Summarize",
+    quickTranslate: zh ? "翻译摘要" : "Translate abstract",
+    noteSummaryTitle: zh ? "AI 文献总结" : "AI Summary",
+    noteTranslateTitle: zh ? "AI 翻译（标题与摘要）" : "AI Translation (Title & Abstract)",
+    menuAiTag: zh ? "AI 自动打标签…" : "AI Auto Tag…",
+    menuMatrix: zh ? "AI 文献矩阵（对比表格笔记）" : "AI Literature Matrix (note)",
+    menuCollectAnnot: zh ? "收集批注为笔记" : "Collect Annotations to Note",
+    menuAiAnnot: zh ? "AI 解读我的批注（生成笔记）" : "AI Interpret My Annotations (note)",
+    menuCollStat: zh ? "Papilot 分类条目统计" : "Papilot Collection Stats",
+    noteAnnotTitle: zh ? "批注收集" : "Annotations",
+    noteAnnotAiTitle: zh ? "AI 批注解读" : "AI Annotation Insights",
+    noteMatrixTitle: zh ? "AI 文献矩阵" : "AI Literature Matrix",
+    annotEmpty: zh ? "该条目没有高亮或批注" : "No annotations on this item",
+    matrixBusy: zh ? "正在逐篇抽取维度…" : "Extracting dimensions…",
+    popupTranslate: zh ? "翻译" : "Translate",
+    popupExplain: zh ? "解读" : "Explain",
+    popupAsk: zh ? "追问…" : "Ask…",
+    popupAskPlaceholder: zh ? "就这段文字继续提问…" : "Ask about this excerpt…",
+    popupSend: zh ? "发送" : "Send",
+    popupCopy: zh ? "复制" : "Copy",
+    popupCopied: zh ? "✓ 已复制" : "✓ Copied",
+    popupRetry: zh ? "重试" : "Retry",
+    popupWriteBack: zh ? "写入批注" : "Add to annotation",
+    popupWriteBackDone: zh ? "✓ 已写入批注" : "✓ Added to annotation",
+    popupWriteBackFail: zh ? "写入批注失败：" : "Failed to add to annotation: ",
+    popupContinuePane: zh ? "在侧栏继续" : "Continue in sidebar",
+    popupPaneUnavailable: zh
+      ? "请先在右侧栏打开「AI 问答」面板"
+      : "Open the AI Chat section in the sidebar first",
+    popupDailyNotice: zh
+      ? "提示：今日 AI 请求已达 500 次，请注意额度"
+      : "Note: 500 AI requests today — watch your quota",
+    // ---- 0.15.0 划词浮窗交互升级 ----
+    popupStop: zh ? "停止" : "Stop",
+    popupBusyHint: zh ? "生成中…（点「停止」可取消）" : "Generating… (click Stop to cancel)",
+    popupExpand: zh ? "展开" : "Expand",
+    popupCollapse: zh ? "收起" : "Collapse",
+    popupZoomIn: zh ? "放大结果字号" : "Larger result text",
+    popupZoomOut: zh ? "缩小结果字号" : "Smaller result text",
+    // ---- 划词浮窗 Ctrl 拼接模式 ----
+    popupConcatBadge: zh ? "已拼接" : "Concat",
+    popupConcatUnit: zh ? "段" : "seg",
+    popupConcatClear: zh ? "清空" : "Clear",
+    popupConcatRemove: zh ? "移除该段" : "Remove this segment",
+    promptRun: zh ? "执行" : "Run",
+    tagApplyDone: zh ? "已写入标签" : "Tags applied",
+    chatPlaceholder: zh ? "针对这篇文献提问…" : "Ask about this paper…",
+    chatSend: zh ? "发送" : "Send",
+    chatClear: zh ? "清空" : "Clear",
+    chatSave: zh ? "存为笔记" : "Save as note",
+    chatSaved: zh ? "已保存为笔记" : "Saved as note",
+    chatEmptyHistory: zh ? "还没有可保存的对话" : "Nothing to save yet",
+    chatNoKey: zh
+      ? "请先在 编辑 → 设置 → Papilot 中登录账号（官方模型按 AI 额度扣费），或在「AI 模型通道」中配置自己的接口"
+      : "Log in under Edit → Settings → Papilot (official model is free), or configure your own channel",
+    chatNoPdf: zh
+      ? "该条目没有可读取的 PDF 全文（扫描件请先 OCR）"
+      : "No readable PDF full text (OCR scanned PDFs first)",
+    chatReading: zh ? "正在读取 PDF 全文…" : "Reading PDF full text…",
+    chatThinking: zh ? "AI 思考中…" : "AI is thinking…",
+    chatEmpty: zh ? "选中一篇带 PDF 的文献，然后开始提问。" : "Select an item with a PDF and ask away.",
+    chatNoItem: zh ? "当前没有选中文献" : "No item selected",
+    // ---- 0.31.0 AI 问答悬浮窗（唤起方式 + 布局强化） ----
+    menuAiChat: zh ? "AI 问答（浮窗 / Ctrl+Shift+K）" : "AI Chat (floating / Ctrl+Shift+K)",
+    chatFloatTitle: zh ? "AI 问答" : "AI Chat",
+    chatFloatNoItem: zh ? "（未锁定文献，输入问题后将使用当前选中/正在阅读的文献）" : "(No item locked — the selected/reading item will be used)",
+    chatFloatSwitched: zh ? "已切换文献，对话已清空" : "Item changed — chat cleared",
+    chatFloatDockLeft: zh ? "停靠到左侧" : "Dock left",
+    chatFloatDockRight: zh ? "停靠到右侧" : "Dock right",
+    chatFloatUndock: zh ? "取消停靠（恢复浮动）" : "Undock (float freely)",
+    chatFloatOpacity: zh ? "透明度" : "Opacity",
+    chatFloatPopout: zh ? "分屏独立窗口" : "Open in split window",
+    chatFloatWindowTitle: zh ? "Papilot · AI 问答（分屏窗口）" : "Papilot · AI Chat (split window)",
+    chatFloatStop: zh ? "停止" : "Stop",
+    chatFloatOpenHint: zh ? "Enter 发送 · Shift+Enter 换行 · ↑↓ 翻提问记录 · Esc 关闭" : "Enter to send · Shift+Enter newline · ↑↓ history · Esc to close",
+    popupContinueFloat: zh ? "在浮窗继续" : "Continue in floating chat",
+    chatFloatReaderBtnTip: zh ? "AI 问答（Ctrl+Enter）" : "AI Chat (Ctrl+Enter)",
+    // 0.40.0 价值感知：回答后提示「本次消耗 / 剩余额度」
+    chatCostNote: zh ? "本次消耗" : "Cost",
+    chatCostLeft: zh ? "剩余额度" : "Balance",
+    // 0.44.0 拖拽条目作为问答上下文（chip）
+    chatChipLimit: zh ? "上下文文献最多 5 篇（多余的已忽略）" : "Context is limited to 5 papers (extras ignored)",
+    chatChipRemove: zh ? "移除该上下文文献" : "Remove from context",
+    chatChipDup: zh ? "该文献已在上下文中" : "Already in context",
+    // 0.47.0 分屏窗口增强
+    chatWinSub: zh ? "与悬浮窗共享会话 · 拖入条目可加上下文" : "Shared session with the float · drag items to add context",
+    chatCopy: zh ? "复制" : "Copy",
+    chatCopied: zh ? "已复制" : "Copied",
+    chatRegen: zh ? "重新生成" : "Regenerate",
+    chatRegenNone: zh ? "还没有可重新生成的回答" : "Nothing to regenerate yet",
+    // 0.48.0 Agent 模式（交互参考 Hermes Agent：任务规划 + 工具调用 + 上下文管理）
+    agentToolCalling: zh ? "🔧 调用工具" : "Calling tool",
+    agentLimited: zh
+      ? "⚠ 已达工具调用轮数上限，以下为最后一轮输出（可在设置 → AI 参数中调大上限）"
+      : "Tool-step limit reached; showing the last raw output (raise it in Settings → AI params)",
+    agentModeOn: zh ? "✓ 智能体模式已开启（AI 可调用工具检索/读写文献库）" : "Agent mode ON (tools enabled)",
+    agentModeOff: zh ? "✓ 智能体模式已关闭（恢复纯文献问答）" : "Agent mode OFF (plain Q&A)",
+    agentNoTools: zh
+      ? "当前没有启用的工具（设置 → Papilot → AI 参数 → 智能体）"
+      : "No tools enabled (Settings → Papilot → AI params → Agent)",
+    noteTitle: zh ? "AI 文献解读" : "AI Interpretation",
+    noteChatTitle: zh ? "AI 问答记录" : "AI Q&A",
+    noteDone: zh ? "已生成解读笔记" : "Note created",
+    rankColumnLabel: zh ? "期刊分区" : "Journal Rank",
+    citationColumnLabel: zh ? "被引量" : "Citations",
+    titleTranslationColumnLabel: zh ? "标题译文" : "Title Translation",
+    progressColumnLabel: zh ? "阅读进度" : "Progress",
+    ratingColumnLabel: zh ? "评级" : "Rating",
+    // 0.46.0 阅读进度 2.0：右键「阅读状态」子菜单尾部维护项
+    menuResetProgress: zh ? "重置阅读进度" : "Reset Reading Progress",
+    progressResetDone: zh ? "已重置所选条目的阅读进度（下次从第 1 页开始）" : "Reading progress reset",
+    progressResetNone: zh ? "所选条目没有可重置的进度记录" : "Nothing to reset",
+    menuRating: zh ? "评级" : "Rating",
+    menuRating1: "★",
+    menuRating2: "★★",
+    menuRating3: "★★★",
+    menuRating4: "★★★★",
+    menuRating5: "★★★★★",
+    menuRatingClear: zh ? "清除评级" : "Clear Rating",
+    menuTagNested: zh ? "嵌套标签视图（只读）" : "Nested Tags (read-only)",
+    menuS2Refresh: zh ? "重新抓取被引量（Semantic Scholar）" : "Refresh Citations (Semantic Scholar)",
+    menuRuleTag: zh ? "规则打标（按自定义规则）" : "Rule-based Tagging",
+    menuCiteTrace: zh ? "引文追溯（参考文献/施引文献笔记）" : "Citation Trace (note)",
+    menuFakeCheck: zh ? "真假文献识别（AI 幻觉检测）" : "Fake Reference Check",
+    menuSmartCleanup: zh ? "智能清理（重复/无附件/缺元数据扫描）" : "Smart Cleanup Scan",
+    menuMetaEnrich: zh ? "元数据补全（S2/Crossref 回写缺失字段）" : "Fill Missing Metadata (S2)",
+    menuRefImport: zh ? "参考文献一键入库…" : "Import References…",
+    menuCiteExport: zh ? "导出参考文献（GB/T 7714）…" : "Export References (GB/T 7714)…",
+    menuObsidianExport: zh ? "导出到 Obsidian…" : "Export to Obsidian…",
+    obsidianExportTitle: zh ? "导出到 Obsidian" : "Export to Obsidian",
+    obsidianPickFolder: zh ? "选择 Obsidian 库目录" : "Choose Obsidian vault folder",
+    obsidianNoItems: zh ? "请先选中至少一篇文献。" : "Select at least one item first.",
+    obsidianConfirm: zh
+      ? "将 {n} 篇文献导出到 {dir}，每篇一个 Markdown 文件（不覆盖已有同名文件）。"
+      : "Export {n} item(s) to {dir} as Markdown files (existing files are never overwritten).",
+    obsidianExportBtn: zh ? "导出" : "Export",
+    obsidianIncludeAi: zh ? "同时生成 AI 摘要（消耗额度或自备 Key）" : "Also generate AI summaries (uses credits or your key)",
+    obsidianDone: zh ? "已导出 {n} 篇" : "Exported {n} item(s)",
+    obsidianFailed: zh ? "导出失败，详见「帮助 → 调试输出」。" : "Export failed — see Help → Debug Output.",
+    citeExportEmpty: zh ? "选中条目里没有可导出的题录。" : "No citable items in the selection.",
+    citeExportSaveTitle: zh ? "保存参考文献" : "Save references",
+    menuPasteCheck: zh ? "粘贴文献列表核验（AI 幻觉检测）…" : "Verify Pasted References…",
+    menuWorkbench: zh ? "Papilot 工作台（独立窗口）" : "Papilot Workbench (standalone window)",
+    menuChannels: zh ? "Papilot AI 模型通道" : "Papilot AI Channels",
+    menuChannelsEmpty: zh ? "（暂无通道，在设置中新增）" : "(No channels — add in Settings)",
+    channelSwitched: zh ? "已切换 AI 通道" : "AI channel switched",
+    channelSwitchBlocked: zh ? "无法切换" : "Cannot switch",
+    errPrefix: zh ? "出错：" : "Error: ",
+    // ---- 0.11.0 新增 ----
+    menuHub: zh ? "Papilot 功能中心" : "Papilot Feature Hub",
+    menuWizard: zh ? "首次使用向导" : "First-run setup",
+    // ---- 0.73.0 组件商店 ----
+    menuModuleStore: zh ? "Papilot 组件商店（按需安装）" : "Papilot Component Store",
+    // ---- 个人中心 · 账号与密钥（本地免费，托管需登录） ----
+    menuVault: zh ? "账号与密钥（个人中心）" : "Credentials & Accounts",
+    menuVaultLocked: zh ? "账号托管需登录" : "Account hosting requires sign-in",
+    menuBilingual: zh ? "全文对照翻译（AI 双语笔记）" : "Bilingual Full-text Translation (note)",
+    noteBilingualTitle: zh ? "全文对照翻译" : "Bilingual Translation",
+    // ---- 0.25.2 全文对照翻译 · 双栏对照窗口 ----
+    menuBilingualView: zh ? "全文对照翻译（文本双栏窗口）" : "Bilingual Full-text Translation (text side-by-side)",
+    // ---- 0.36.0 PDF 对照翻译（左原右译）主入口 ----
+    menuPdfDual: zh ? "PDF 对照翻译（左原版 / 右译文）" : "PDF Side-by-side Translation (source | translation)",
+    pdOpening: zh ? "正在打开左右两栏 PDF…" : "Opening both panes…",
+    pdSync: zh ? "同步滚动" : "Sync scroll",
+    pdFont: zh ? "译文字号" : "Font scale",
+    pdRetranslate: zh ? "重新翻译" : "Re-translate",
+    pdNote: zh ? "导出双语笔记" : "Export note",
+    pdTranslating: zh ? "翻译中" : "Translating",
+    pdDone: zh ? "完成：" : "Done: ",
+    pdNoteBusy: zh ? "正在生成双语笔记…" : "Creating note…",
+    pdNoteDone: zh ? "✓ 已生成双语笔记" : "✓ Bilingual note created",
+    pdNoteFail: zh ? "生成笔记失败：" : "Note failed: ",
+    pdBusy: zh ? "翻译进行中，请稍候…" : "Still translating…",
+    pdBusySwitch: zh ? "正在翻译中：请等完成或关闭窗口后重试" : "Busy — try again later",
+    pdRetranslating: zh ? "已清缓存并重新翻译…" : "Cache cleared, re-translating…",
+    pdOpenFail: zh ? "PDF 预览打开失败：" : "Failed to open preview: ",
+    pdInjectFail: zh ? "无法启动翻译：" : "Failed to start translation: ",
+    pdNoBrowser: zh ? "窗口组件缺失，无法打开预览" : "Missing browser element",
+    // ---- 0.34.0 PDF 原位对照翻译（译文按段叠加回原页位置） ----
+    menuPdfInline: zh ? "PDF 原位对照翻译（译文叠加在原页位置）" : "Inline PDF Translation (in-place overlay)",
+    piStarted: zh ? "原位对照翻译已开启：译文按段叠加在原文位置" : "Inline translation started",
+    piNoEngine: zh ? "翻译引擎不可用，请先在设置里选择可用引擎" : "No translation engine available",
+    blSrc: zh ? "原文" : "Source",
+    blDst: zh ? "译文" : "Translation",
+    blLayout: zh ? "布局" : "Layout",
+    blLayoutAuto: zh ? "自动（窄屏单栏）" : "Auto (single when narrow)",
+    blLayoutTwo: zh ? "强制双栏" : "Two columns",
+    blLayoutSingle: zh ? "强制单栏" : "Single column",
+    blFont: zh ? "字号" : "Font",
+    blCopyAll: zh ? "复制译文" : "Copy translations",
+    blNote: zh ? "导出双语笔记" : "Export note",
+    blReading: zh ? "读取全文…" : "Reading full text…",
+    blTranslating: zh ? "翻译中" : "Translating",
+    blPending: zh ? "翻译中…" : "Translating…",
+    blDone: zh ? "完成：" : "Done: ",
+    blFail: zh ? "翻译失败：" : "Failed: ",
+    blEmptyCell: zh ? "（空）" : "(empty)",
+    blNoText: zh
+      ? "未能取得全文：该条目可能没有可解析文本的 PDF（或无 PDF 附件、扫描件需先 OCR）。"
+      : "No extractable full text: the item may have no PDF, or only a scanned PDF (OCR required).",
+    blNothingCopy: zh ? "还没有译文可复制" : "Nothing to copy yet",
+    blCopied: zh ? "已复制全部译文" : "Copied all translations",
+    blBusy: zh ? "翻译还没结束，请稍候…" : "Still translating — please wait…",
+    blBusySwitch: zh ? "正在翻译中：请等完成或关闭窗口后重试" : "Busy translating — wait or reopen",
+    blNoteBusy: zh ? "正在生成双语笔记…" : "Creating note…",
+    blNoteDone: zh ? "✓ 已生成双语笔记" : "✓ Bilingual note created",
+    blNoteFail: zh ? "生成笔记失败：" : "Note failed: ",
+    menuCnMeta: zh ? "中文文件名识别元数据（知网/万方）" : "Parse Chinese Filename Metadata",
+    menuCnFetch: zh ? "抓取中文元数据（网络搜索知网等）" : "Fetch CN Metadata (PubScholar/CNKI)",
+    menuCnTranslators: zh ? "更新中文转换器（修复知网抓取）" : "Update CN Translators (fix CNKI)",
+    menuCNVerify: zh ? "知网验证（解除风控拦截）" : "CNKI Verification (unblock)",
+    menuCNLogin: zh ? "知网账号登录（登录后可下载 PDF 全文）" : "CNKI Account Login (enables PDF download)",
+    menuCnMatchAtt: zh ? "在下载文件夹中查找附件" : "Find Attachments in Downloads",
+    menuCnNameMerge: zh ? "合并中文姓名（两栏→单栏）" : "Merge CN Names (to single field)",
+    menuCnNameSplit: zh ? "拆分中文姓名（单栏→姓+名）" : "Split CN Names (to two fields)",
+    menuReadingState: zh ? "阅读状态" : "Reading State",
+    menuStateUnread: zh ? "标记为「未读」" : "Mark as Unread",
+    menuStateReading: zh ? "标记为「在读」" : "Mark as Reading",
+    menuStateDone: zh ? "标记为「已读」" : "Mark as Done",
+    menuNoteTemplate: zh ? "按模板新建笔记…" : "New Note from Template…",
+    menuAttachRename: zh ? "附件按规则重命名" : "Rename Attachments by Pattern",
+    menuMindmap: zh ? "AI 思维导图（大纲笔记）" : "AI Mind Map (outline note)",
+    noteMindmapTitle: zh ? "思维导图" : "Mind Map",
+    menuReview: zh ? "AI 文献综述（多篇，带引用）" : "AI Literature Review (multi)",
+    noteReviewTitle: zh ? "AI 文献综述" : "AI Literature Review",
+    menuMetaLint: zh ? "元数据规范清洗（DOI/日期/标题/URL）" : "Metadata Lint",
+    menuMetaDoctor: zh ? "元数据医生（Crossref 补 DOI/期刊/年份）" : "Metadata Doctor (Crossref fill)",
+    // ---- 0.63.0 PDF 无头渲染 + 视觉 OCR（扫描件补全文）----
+    menuOcrRun: zh ? "扫描件 OCR（视觉模型转写为本机文本）" : "OCR Scanned PDF (vision model → local text)",
+    ocrTitle: zh ? "扫描件 OCR" : "OCR Scanned PDF",
+    ocrNoPdf: zh
+      ? "选中的条目里没有 PDF 附件。\n请选中带 PDF 的文献，或直接选中 PDF 附件。"
+      : "No PDF attachment in the selection.",
+    ocrNoEngine: zh
+      ? "渲染引擎不可用：内置 pdf.js 未能加载，无法把 PDF 页面转成图片。\n重启 Zotero 后仍失败请查看「帮助 → 调试输出」里的 pdfjs 日志。"
+      : "Rendering engine unavailable: the bundled pdf.js failed to load.",
+    ocrConfirm: zh
+      ? "将识别 {n} 页：先把每页渲染成图片，再交给当前 AI 通道的视觉模型转写。\n\n"
+        + "· 只发送当前页的图片，不上传整份 PDF；\n"
+        + "· 会消耗你的 AI 额度（或自备 Key 的额度）；\n"
+        + "· 结果只存在本机，可在「AI 问答」里直接使用。\n\n是否继续？"
+      : "OCR {n} page(s): each page is rendered to an image and sent to your current AI channel's "
+        + "vision model.\n\n· only the current page image is sent (never the whole PDF);\n"
+        + "· this consumes your AI credits (or your own key);\n"
+        + "· results are stored locally and used by AI chat.\n\nContinue?",
+    ocrDone: zh ? "已识别 {n} 页（结果已存本机，AI 问答可直接使用）" : "OCR done: {n} page(s) (stored locally)",
+    ocrFailed: zh
+      ? "OCR 失败，详见「帮助 → 调试输出」。已识别的页已保存在本机，可重跑续接。"
+      : "OCR failed — see Help → Debug Output. Pages already done are kept locally.",
+    ocrNoKey: zh
+      ? "OCR 需要视觉模型：请先在 设置 → Papilot 登录账号（走 AI 额度），或在「AI 模型通道」中配置自己的多模态接口。"
+      : "OCR needs a vision model: log in under Settings → Papilot, or configure a multimodal channel.",
+    // ---- 0.63.0 笔记工具（A2）：单篇大纲 + 多篇批量整理 ----
+    menuNoteTools: zh ? "笔记工具（大纲 / 批量整理）…" : "Note Tools (outline / batch)…",
+    noteToolsTitle: zh ? "笔记工具" : "Note Tools",
+    noteToolsEmpty: zh
+      ? "选中的条目下没有笔记。\n请选中至少一条笔记（或带笔记的文献）后再试。"
+      : "No notes in the selection.",
+    noteToolsOutline: zh ? "生成 / 刷新大纲" : "Build / refresh outline",
+    noteToolsRemoveOutline: zh ? "移除大纲" : "Remove outline",
+    noteToolsAddTag: zh ? "加标签…" : "Add tags…",
+    noteToolsRemoveTag: zh ? "去标签…" : "Remove tags…",
+    noteToolsMove: zh ? "移入当前分类" : "Move to current collection",
+    noteToolsPrefix: zh ? "统一标题前缀…" : "Unify title prefix…",
+    noteToolsMerge: zh ? "合并为新笔记" : "Merge into a new note",
+    noteToolsMergeTitle: zh ? "笔记整理（合并）" : "Note digest (merged)",
+    noteToolsDone: zh ? "已处理 {n} 条笔记" : "Processed {n} note(s)",
+    noteToolsNoCollection: zh
+      ? "请先在主窗口左侧选中一个分类，再执行「移入当前分类」。"
+      : "Select a collection in the main window first.",
+    noteToolsPromptTags: zh
+      ? "输入标签，多个用逗号或空格分隔（已存在的标签不会重复添加）："
+      : "Enter tags separated by commas or spaces:",
+    noteToolsPromptPrefix: zh
+      ? "输入要加到每条笔记标题前的前缀（例如「[精读] 」）："
+      : "Enter the prefix to prepend to each note title (e.g. \"[Read] \"):",
+
+
+    menuAnnotDigest: zh ? "标注→论点速记（AI 整理为笔记）" : "Annotation → Argument Digest (AI)",
+    menuReviewWorkbench: zh ? "综述工作台（多篇 → 大纲 → 分节草稿）…" : "Review Workbench (outline → sections)…",
+    menuReviewWorkbenchDisabled: zh ? "综述工作台已在设置中关闭" : "Review Workbench is disabled in settings",
+    menuAnnotDigestDisabled: zh ? "标注→论点速记已在设置中关闭" : "Annotation digest is disabled in settings",
+    menuOaFetch: zh ? "开放获取 / Sci-Hub 补全文" : "Find Full Text (OA / Sci-Hub)",
+    menuThirdSource: zh ? "第三方文献源（实验 · Pro 试用）" : "Third-party Source (Experimental · Pro)",
+    menuAnki: zh ? "AI 制卡导出 Anki…" : "AI Cards to Anki…",
+    menuLibGraph: zh ? "Papilot 文献统计图谱（HTML 报告）" : "Papilot Library Report (HTML)",
+    // 0.16.0 外观主题
+    menuThemes: zh ? "外观主题" : "Appearance Themes",
+    menuUiTheme: zh ? "界面主题" : "UI Theme",
+    menuPdfTheme: zh ? "PDF 阅读主题" : "PDF Reading Theme",
+    themeFollowNative: zh ? "跟随 Zotero 原生" : "Follow Zotero native",
+    themeGroupStandard: zh ? "标准系列" : "Standard",
+    themeGroupAnime: zh ? "动漫风" : "Anime",
+    themeGroupScenery: zh ? "风景" : "Scenery",
+    themeGroupDynamic: zh ? "动态壁纸" : "Animated",
+    themeCustom: zh ? "自定义主题" : "Custom theme",
+    themeGroupGiant: zh ? "巨物风" : "Giant",
+    // ---- 0.25.1 主题切换按钮：界面主题（主窗口）/ PDF 阅读主题（阅读器）两个按钮分开 ----
+    themeUiButtonTip: zh ? "Papilot 界面主题" : "Papilot UI theme",
+    quickBarTip: zh ? "Papilot 快捷菜单（高频功能 / 功能中心 / 设置）"
+      : "Papilot quick menu (frequent actions / hub / settings)",
+    themePdfButtonTip: zh ? "Papilot PDF 阅读主题" : "Papilot PDF reading theme",
+    themeOpenSettings: zh
+      ? "外观主题设置…（自定义配色 / 壁纸）"
+      : "Appearance theme settings… (custom colors / wallpaper)",
+    // ---- 0.21.0 多篇 PDF 并排对比 ----
+    menuPdfCompare: zh ? "多篇 PDF 并排对比…" : "Compare PDFs Side by Side…",
+    compareWindowTitle: zh ? "Papilot 多篇 PDF 对比" : "Papilot PDF Comparison",
+    compareNoPdf: zh
+      ? "选中的条目里没有可用的 PDF 附件。\n请选中带 PDF 的文献，或直接选中 PDF 附件。"
+      : "No usable PDF attachments in the selection.",
+    compareNeedTwo: zh
+      ? "对比至少需要两篇带 PDF 的文献。\n请按住 Ctrl/⌘ 多选后再试。"
+      : "Select at least two papers with PDFs (Ctrl/⌘-click).",
+    compareTrimmed: zh
+      ? "已选 %n 篇，超过同时打开的 %m 篇上限，只打开前 %m 篇。\n（上限可在设置 → Papilot 中调整）"
+      : "Selected %n; the limit is %m, so the first %m were opened.",
+    compareCount: zh ? "对比面板：%n / %m" : "Panes: %n / %m",
+    compareLayout: zh ? "布局" : "Layout",
+    compareLayoutAuto: zh ? "自动（按篇数）" : "Auto (by count)",
+    compareLayoutH: zh ? "横向并排" : "Side by side",
+    compareLayoutV: zh ? "纵向堆叠" : "Stacked",
+    compareLayoutGrid: zh ? "网格 2×2" : "Grid 2×2",
+    compareSyncScroll: zh ? "同步滚动" : "Sync scroll",
+    compareSyncZoom: zh ? "同步缩放" : "Sync zoom",
+    compareZoomIn: zh ? "放大当前面板（同步缩放开启时作用于全部面板）" : "Zoom in",
+    compareZoomOut: zh ? "缩小当前面板（同步缩放开启时作用于全部面板）" : "Zoom out",
+    compareZoomFit: zh ? "适合宽度" : "Fit width",
+    compareAddSelected: zh ? "添加选中文献" : "Add selected",
+    compareAddSelectedHint: zh
+      ? "把条目列表中当前选中的 PDF 追加到对比窗口"
+      : "Append the PDFs currently selected in the item list",
+    compareReadingSelection: zh ? "正在读取条目列表的选中项…" : "Reading selection…",
+    compareNoSelectionPdf: zh ? "条目列表的当前选中项里没有 PDF" : "No PDF in the current selection",
+    compareAdded: zh ? "已添加 %n 篇" : "Added %n",
+    compareNothingAdded: zh ? "没有新增面板（可能已存在或已达上限）" : "Nothing added",
+    compareEmptyHint: zh
+      ? "没有待对比的 PDF。请先在条目列表中选中 2–4 篇带 PDF 的文献，再用「添加选中文献」。"
+      : "No PDFs yet. Select 2–4 papers in the item list, then use “Add selected”.",
+    compareLoading: zh ? "正在加载 PDF…" : "Loading PDF…",
+    compareLoadFailed: zh ? "PDF 加载失败：" : "Failed to load PDF: ",
+    compareViewUnavailable: zh
+      ? "无法访问该 PDF 视图（Zotero 版本可能已变更内嵌方式）"
+      : "Cannot access the PDF view (Zotero internals may have changed)",
+    compareApiUnavailable: zh
+      ? "当前 Zotero 版本不提供内嵌预览接口（需要 Zotero 7 及以上）"
+      : "This Zotero version provides no embedded preview API (Zotero 7+ required)",
+    compareOpenInReader: zh ? "在阅读器中打开" : "Open in reader",
+    compareOpenInReaderHint: zh
+      ? "跳到正式阅读器：可新增高亮/批注、可划词（对比面板本身是只读预览）"
+      : "Open in the full reader to annotate and select text (panes are read-only previews)",
+    compareRemove: zh ? "移除该面板" : "Remove pane",
+    compareUnnamed: zh ? "（未命名 PDF）" : "(untitled PDF)",
+    compareLimitReached: zh ? "最多同时对比 %n 篇（可在设置中调整上限）" : "Up to %n panes",
+    compareDuplicated: zh ? "该 PDF 已在对比窗口中" : "That PDF is already in the window",
+    compareNoFocus: zh ? "请先点击一个面板再缩放" : "Click a pane first, then zoom",
+    // ---- 0.21.3 对比窗口：页码导航 / 按页码同步 / 页面文本 ----
+    comparePrevPage: zh ? "上一页" : "Previous page",
+    compareNextPage: zh ? "下一页" : "Next page",
+    compareJumpPageHint: zh ? "输入页码后回车跳转" : "Type a page number and press Enter",
+    compareNotReady: zh ? "该面板还没加载完成" : "This pane is not ready yet",
+    compareAlign: zh ? "对齐到当前页" : "Align to page",
+    compareAlignHint: zh
+      ? "让所有面板跳到当前面板所在的页码（对比同一篇论文的不同版本时最有用）"
+      : "Jump every pane to the current pane's page",
+    compareAligned: zh ? "已对齐到第 %n 页（%c 个面板）" : "Aligned to page %n (%c panes)",
+    compareZoom100: zh ? "全部恢复 100%" : "Reset all to 100%",
+    compareCopyPage: zh ? "复制本页文本" : "Copy page text",
+    compareCopyPageHint: zh
+      ? "取当前面板当前页的文字到剪贴板（预览无文本层，不能用鼠标选字，故提供此按钮）"
+      : "Copy the current page's text (preview has no text layer, so selection is unavailable)",
+    compareExtracting: zh ? "正在提取文字…" : "Extracting text…",
+    comparePageTextEmpty: zh ? "本页没有可提取的文字（可能是扫描件，需先 OCR）" : "No extractable text on this page (scanned PDF? OCR it first)",
+    comparePageTextTitle: zh ? "第 %p 页文本 ／ 共 %t 页" : "Page %p of %t — text",
+    comparePageTextCopied: zh ? "已复制 %n 个字符" : "Copied %n characters",
+    compareTranslatePage: zh ? "翻译本页" : "Translate page",
+    compareTranslatePageHint: zh
+      ? "把当前面板当前页的文字交给 AI 翻译，结果在下方对照区显示"
+      : "Translate the current page with AI; the result shows below",
+    compareTranslateTitle: zh ? "第 %p 页译文 ／ 共 %t 页" : "Page %p of %t — translation",
+    compareTranslating: zh ? "正在翻译本页…" : "Translating page…",
+    compareTruncated: zh ? "（本页文字较长，已截断前 6000 字）" : " (page text was truncated to 6000 chars)",
+    compareClose: zh ? "关闭" : "Close",
+    // ---- 0.21.0 划词浮窗：AI 未就绪不再静默（此前连按钮都不出现）----
+    popupNoAi: zh
+      ? "AI 不可用：未登录官方模型且未配置自己的模型通道。"
+      : "AI unavailable: not logged in and no custom channel configured.",
+    popupGoLogin: zh ? "去登录 / 配置" : "Log in / Configure",
+    // ---- 0.28.0 多引擎翻译：翻译与 AI 解耦后，缺引擎要有独立指引 ----
+    popupNoEngine: zh
+      ? "翻译不可用：当前没有可用的翻译引擎（AI 未登录/未配置，且无免费引擎兜底）。"
+      : "Translation unavailable: no usable engine (AI not logged in/configured, no free fallback).",
+    menuTranslateEngine: zh ? "Papilot 翻译引擎" : "Papilot Translation Engine",
+    translateTest: zh ? "测试" : "Test",
+    translateTesting: zh ? "测试中…" : "Testing…",
+    // ---- 0.30.0 阅读器右侧栏 · 翻译面板（TranslatePane）----
+    tpEngine: zh ? "引擎" : "Engine",
+    tpSource: zh ? "源" : "From",
+    tpTarget: zh ? "译至" : "To",
+    tpSelectionPh: zh
+      ? "在 PDF 中划词会自动填入；也可直接粘贴要翻译的文本…"
+      : "Select text in the PDF (auto-filled) or paste text here…",
+    tpTranslate: zh ? "翻译" : "Translate",
+    tpClear: zh ? "清空" : "Clear",
+    tpResultEmpty: zh ? "译文会显示在这里" : "Translation appears here",
+    tpCopy: zh ? "复制" : "Copy",
+    tpCopied: zh ? "✓ 已复制" : "✓ Copied",
+    tpFullText: zh ? "全文对照翻译" : "Full-text translation",
+    tpStart: zh ? "开始" : "Start",
+    tpOpenTwoCol: zh ? "双栏窗口" : "Two-column window",
+    tpExportNote: zh ? "导出双语笔记" : "Export note",
+    tpTitleAbstract: zh ? "标题与摘要" : "Title & abstract",
+    tpSettings: zh ? "引擎设置" : "Engine settings",
+    tpHub: zh ? "功能中心" : "Feature hub",
+    tpTranslating: zh ? "翻译中" : "Translating",
+    tpReading: zh ? "读取全文…" : "Reading full text…",
+    tpDone: zh ? "完成" : "Done",
+    tpNoText: zh ? "请先划词或粘贴要翻译的文本" : "Select or paste text first",
+    tpNoPairs: zh ? "还没有全文译文，请先点「开始」" : "No full-text result yet — click Start first",
+    chatNotLoggedIn: zh
+      ? "官方模型需要登录：在 设置 → Papilot「账号与会员」里登录；没有账号点「注册账号」当场注册（注册即赠额度），或在「AI 模型通道」中配置自己的接口"
+      : "The official model requires login: open Settings → Papilot → Account to log in — or click “Register” there if you don't have an account yet — or configure your own channel",
+    chatNoKeyConfigured: zh
+      ? "当前模型通道缺少 API Key：请在 设置 → Papilot → AI 模型通道 中补全"
+      : "The active channel has no API key — fill it in under Settings → Papilot → AI Channels",
+    // ---- 0.22.0 库内问答 / 标签治理 / 附件体检 ----
+    menuLibAsk: zh ? "库内问答（问整个文献库）…" : "Ask the Library (whole library)…",
+    menuAttachDoctor: zh ? "附件体检（断链/重复/扫描件/孤儿文件）" : "Attachment Doctor (broken/dup/scanned)",
+    menuTagCurator: zh ? "标签治理（扫描变体，只读）" : "Tag Curator (scan, read-only)",
+    menuTagNormalize: zh ? "标签归一（执行合并，需确认）" : "Normalize Tags (merge, confirm)",
+    // 0.70.0 标签管理器：左下角/条目右键共用同一个窗口
+    menuTagManager: zh ? "标签管理器（批量删除/改名/合并/层级）…" : "Tag Manager (batch edit)…",
+    // ---- 0.23.0 自动化引擎 / 入库自动精读 ----
+    menuAutomation: zh ? "自动化规则（触发→条件→动作）…" : "Automation Rules…",
+    menuAutomationRun: zh ? "按自动化规则处理所选（先预览）" : "Run Automation Rules on Selection (preview)",
+    menuAutoReadNow: zh ? "立即 AI 精读所选文献" : "AI Deep-read Selected Now",
+    // ---- 0.23.0 笔记关系图谱 / 阅读报告 ----
+    menuNoteGraph: zh ? "笔记关系图谱…" : "Note Graph…",
+    menuReadingReport: zh ? "阅读报告（生成笔记）" : "Reading Report (note)",
+    // ---- 0.24.0 文献发现 / 元数据体检 / MCP 对外供给 ----
+    menuDiscovery: zh ? "文献发现（arXiv 每日推荐）…" : "Discovery (arXiv Daily)…",
+    menuMetaRules: zh ? "元数据体检（规则补齐）…" : "Metadata Rules (checklist)…",
+    menuMcp: zh ? "MCP 对外供给（让外部 AI 调用文献库）…" : "MCP Server (expose library)…",
+    // ---- 0.29.0 菜单瘦身：语义分组标签（右键 + 工具菜单共用）----
+    menuGroupHub: zh ? "功能中心" : "Hub",
+    menuGroupDiscovery: zh ? "发现与报告" : "Discovery & Reports",
+    menuGroupGovernance: zh ? "治理与维护" : "Maintenance",
+    menuGroupAi: zh ? "AI 阅读助手" : "AI Reading",
+    menuGroupNotes: zh ? "笔记与输出" : "Notes & Export",
+    menuGroupCitation: zh ? "引文分析" : "Citation Analysis",
+    menuGroupTags: zh ? "标签治理" : "Tags",
+    menuGroupMeta: zh ? "元数据治理" : "Metadata",
+    menuGroupCn: zh ? "中文文献工具" : "Chinese Literature Tools",
+    menuGroupAutomation: zh ? "自动化" : "Automation",
+  };
+  return {
+    t(key) { return table[key] || key; },
+    isZh: zh,
+  };
+})();
+
+// Markdown 子集 → Zotero 笔记 HTML（标题/加粗/行内代码/无序与有序列表/段落）
+var MdLite = {
+  escape(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  },
+
+  // 行内元素（输入为未转义文本）
+  inline(s) {
+    return this.escape(s)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  },
+
+  /** Markdown 子集 → 富文本 HTML 正文（0.10.0 抽出：侧栏气泡渲染与笔记共用，
+   *  语义标签不加硬编码颜色，深浅主题都安全。
+   *  0.47.0：支持 ``` 围栏代码块 → <pre><code>（AI 回答里的公式/代码不再丢格式；
+   *  悬浮窗样式表本就预留了 .pp-cf-msg pre 规则，分屏窗口/workbench 同样支持） */
+  toHtml(md) {
+    const lines = String(md || "").split(/\r?\n/);
+    let html = "";
+    let inList = false;
+    let para = [];
+    let table = [];
+    let inCode = false;
+    let codeLines = [];
+    const flushPara = () => {
+      if (para.length) { html += "<p>" + para.join("<br/>") + "</p>"; para = []; }
+    };
+    const closeList = () => {
+      if (inList) { html += "</ul>"; inList = false; }
+    };
+    const flushTable = () => {
+      if (!table.length) return;
+      const rows = table.filter(l => !/^\s*\|[\s:|-]+\|\s*$/.test(l)); // 去掉分隔行
+      if (rows.length) {
+        html += '<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;">';
+        rows.forEach((l, idx) => {
+          const cells = l.trim().replace(/^\||\|$/g, "").split("|");
+          const tag = idx === 0 ? "th" : "td";
+          html += "<tr>" + cells.map(c => `<${tag}>${this.inline(c.trim())}</${tag}>`).join("") + "</tr>";
+        });
+        html += "</table>";
+      }
+      table = [];
+    };
+    const flushCode = () => {
+      if (codeLines.length) {
+        html += "<pre><code>" + this.escape(codeLines.join("\n")) + "</code></pre>";
+        codeLines = [];
+      }
+      inCode = false;
+    };
+    for (const raw of lines) {
+      const line = raw.replace(/\s+$/, "");
+      // ``` 围栏代码块（可带语言标注行，忽略标注）
+      if (/^\s*```/.test(line)) {
+        if (inCode) {
+          flushCode();
+        } else {
+          flushPara(); closeList(); flushTable();
+          inCode = true;
+        }
+        continue;
+      }
+      if (inCode) { codeLines.push(raw); continue; }
+      const isTable = /^\s*\|.+\|\s*$/.test(line);
+      if (isTable) { flushPara(); closeList(); table.push(line); continue; }
+      flushTable();
+      const h = line.match(/^\s*#{1,4}\s+(.+)$/);
+      const li = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.+)$/);
+      if (h) {
+        flushPara(); closeList();
+        html += "<h3>" + this.inline(h[1]) + "</h3>";
+      } else if (li) {
+        flushPara();
+        if (!inList) { html += "<ul>"; inList = true; }
+        html += "<li>" + this.inline(li[1]) + "</li>";
+      } else if (!line.trim()) {
+        flushPara(); closeList();
+      } else if (/^\s*>/.test(line)) {
+        flushPara(); closeList();
+        html += "<blockquote>" + this.inline(line.replace(/^\s*>\s?/, "")) + "</blockquote>";
+      } else if (/^\s*---+\s*$/.test(line)) {
+        flushPara(); closeList();
+        html += "<hr/>";
+      } else {
+        closeList();
+        para.push(this.inline(line));
+      }
+    }
+    if (inCode) flushCode(); // 未闭合的围栏：按代码块收尾
+    flushTable();
+    flushPara(); closeList();
+    return html;
+  },
+
+  toNoteHtml(title, md) {
+    return "<h2>" + this.escape(title) + "</h2>" + this.toHtml(md);
+  },
+};
+
+// 笔记助手：常规条目挂到条目下，附件挂到其父条目下
+var Notes = {
+  async createFromMarkdown(item, title, md, opts) {
+    const note = new Zotero.Item("note");
+    note.libraryID = item.libraryID;
+    if (item.isRegularItem && item.isRegularItem()) {
+      note.parentID = item.id;
+    } else if (item.parentID) {
+      note.parentID = item.parentID;
+    }
+    // 0.54.0（审查 P2-9）：允许调用方在**落盘前**改写 HTML（如把引用转成 <a>），
+    // 避免「先存一次再改再存一次」的双写/双同步。
+    let html = MdLite.toNoteHtml(title, md);
+    try {
+      if (opts && typeof opts.transformHtml === "function") {
+        const out = opts.transformHtml(html);
+        if (out != null) html = String(out);
+      }
+    } catch (e) { /* 变换失败用原始 HTML */ }
+    note.setNote(html);
+    await note.saveTx();
+    return note;
+  },
+};
+
+// 选中条目归一化（0.8.1）：PDF/附件自动上溯到父条目，去重。
+// 背景：用户选中 PDF 附件再点 AI 功能时，旧代码 isRegularItem 过滤后列表为空，
+// 静默无反应，看起来就像"功能坏了"。
+var ItemSel = {
+  regularOnly(items) {
+    const out = [];
+    for (const i of items || []) {
+      try {
+        if (i.isRegularItem && i.isRegularItem()) { out.push(i); continue; }
+        if (i.isAttachment && i.isAttachment() && i.parentID) {
+          const p = Zotero.Items.get(i.parentID);
+          if (p && p.isRegularItem && p.isRegularItem()) out.push(p);
+        }
+      } catch (e) { /* ignore */ }
+    }
+    return [...new Set(out)];
+  },
+
+  /** 空选择时给用户明确反馈（各 runForSelected 统一调用） */
+  alertEmpty() {
+    try {
+      Services.prompt.alert(
+        Zotero.getMainWindow(),
+        "Papilot",
+        I18n.isZh
+          ? "没有可处理的条目。\n请先在条目列表中选中至少一篇文献（选 PDF 附件也可以，会自动定位到其父条目）。"
+          : "No processable items. Select at least one item first (selecting a PDF attachment works too — its parent item is used)."
+      );
+    } catch (e) { /* ignore */ }
+  },
+};
+
+/**
+ * 首启向导自动弹出闸门（0.68.3）
+ *
+ * 为什么单独抽出来：这段判断决定「老用户会不会被反复当成新用户」，
+ * 而它依赖三个**异步/易错**的状态（pref 是否已写过、会话是否已恢复、通道是否已配）。
+ * 放在纯函数里就能用矩阵穷举，而不是靠真机点一遍。
+ *
+ * 判定顺序（先到先得）：
+ *   ① wizardDone 非空（done / skipped）→ 永不自动弹（菜单仍可手动开）
+ *   ② 已登录 → 不再自动弹，并补写 wizardDone=skipped（老用户升级过来时最常见）
+ *   ③ 已有自定义通道（非 official）→ 同上（没账号但自己配过接口的人）
+ *   ④ 其余（真空档）→ 弹
+ *
+ * 注意：②③ 必须**补写 pref**。否则每次启动都要重新判断一遍，
+ * 一旦哪次会话恢复慢了一拍，用户就会莫名其妙又看到向导。
+ */
+var WizardGate = {
+  /** @returns {{show:boolean, mark:(''|'skipped'), reason:string}} */
+  decide(input) {
+    const src = input || {};
+    const done = String(src.wizardDone == null ? "" : src.wizardDone).trim();
+    if (done) return { show: false, mark: "", reason: "done" };
+    if (src.loggedIn) return { show: false, mark: "skipped", reason: "logged-in" };
+    if (src.configured) return { show: false, mark: "skipped", reason: "configured" };
+    return { show: true, mark: "", reason: "first-run" };
+  },
+};

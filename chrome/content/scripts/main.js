@@ -1,0 +1,1781 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2026 Cassiuschen. All rights reserved.
+
+/* Papilot 主入口：装配各模块
+ * 由 bootstrap.js 通过 Services.scriptloader 加载，共享 bootstrap 作用域
+ */
+/* global Zotero, Services, Prefs, WizardGate, IOUtils, PathUtils, RankColumn, CitationColumn, S2Client, AIChatPane, GlancePane, TranslatePane, Menus, ReaderPopup, AIProviders, Account, Channels, AIClient, AIChat, RuleTag, CitationTrace, RefFormat, RefSources, RefImport, FakeCheck, SmartCleanup, MetaEnrich, ReadingState, AutoTag, Matrix, Annotations, CollectionStats, BilingualTranslate, CNMeta, CNTranslators, CNFetch, CNVerify, NoteTemplates, AttachManager, MindMap, ReviewGen, MetaLint, OAFetch, SciHub, AnkiExport, LibGraph, Prompts, UiTheme, PdfTheme, ThemeToggle, PdfCompare, TagCurator, AttachDoctor, LibSearch, Automation, AutoRead, NoteGraph, ReadingStats, ReadingProgress, MetaRules, Discovery, MCP, ArxivErrors, ArxivDates, ArxivQuery, ArxivCategories, ArxivAtom, ArxivAnalyze, ArxivRateLimiter, ArxivFetch, TranslateSvc, TranslateLang, TranslateCrypto, TranslateGlossary, TranslateFormula, TranslateEngines, CommandTags, SlashCommands, Hotkeys, RefPane, TranslateX, Rating, TitleTranslationColumn, ProgressColumn, RatingColumn, FullTextResolver, TranslateCompare, SkillPacks, CloudSync, WebDAV, OcrService, NoteTools, pdfjsLib, TagOps, TagMenu, _ppDiag */
+
+Zotero.Papilot = {
+  id: null,
+  version: null,
+  rootURI: null,
+  _initialized: false,
+  _prefObserverSymbols: null,
+  _paneID: null,
+  // 0.63.0 pdf.js 实例（**懒加载**：null = 尚未加载或不可用；OCR 首次调用时经
+  // _ensurePdfjs() 载入，失败置 _pdfjsFailed 并降级——见 init 内装配段注释）
+  _pdfjs: null,
+  _pdfjsFailed: false,
+
+  _diag(msg) {
+    try { _ppDiag(msg); } catch (e) { /* bootstrap 未提供则忽略 */ }
+  },
+
+  /**
+   * 组件热装后的轻量 rebind 钩子。只更新 Zotero.Papilot 上的引用并执行组件显式
+   * 提供的 onModuleRefresh；绝不重跑 init，避免重复注册 Zotero notifier/事件监听。
+   */
+  _rebindModuleGlobals(moduleId) {
+    const bindings = {
+      providers: "AIProviders", account: "Account", channels: "Channels",
+      translateSvc: "TranslateSvc", glossaryPacks: "GlossaryPacks", pdfText: "PdfText",
+      menus: "Menus", i18n: "I18n", rankColumn: "RankColumn", citationColumn: "CitationColumn",
+      s2: "S2Client", ruleTag: "RuleTag", citationTrace: "CitationTrace", refImport: "RefImport",
+      fakeCheck: "FakeCheck", smartCleanup: "SmartCleanup", metaEnrich: "MetaEnrich",
+      aiChat: "AIChat", aiClient: "AIClient", notes: "Notes", mdLite: "MdLite",
+      autoTag: "AutoTag", matrix: "Matrix", annotations: "Annotations",
+      collectionStats: "CollectionStats", bilingual: "BilingualTranslate",
+      translatePane: "TranslatePane", chatFloat: "ChatFloat", skillPacks: "SkillPacks",
+      cloudSync: "CloudSync", credVault: "CredVault", wpsBridge: "WpsBridge", community: "Community",
+      chatSessions: "ChatSessions", scheduler: "Scheduler", agentMemory: "AgentMemory",
+      metaDoctor: "MetaDoctor", annotationDigest: "AnnotationDigest", searchSubs: "SearchSubs",
+      subSources: "SubSources", subsBridge: "SubsBridge", reviewWorkbench: "ReviewWorkbench",
+      agentTools: "AgentTools", commandTags: "CommandTags", cnMeta: "CNMeta",
+      cnTranslators: "CNTranslators", cnFetch: "CNFetch", cnVerify: "CNVerify", cnAuth: "CNAuth",
+      readingState: "ReadingState", noteTemplates: "NoteTemplates", noteTools: "NoteTools",
+      attachManager: "AttachManager", mindmap: "MindMap", reviewGen: "ReviewGen",
+      metaLint: "MetaLint", oaFetch: "OAFetch", scihub: "SciHub", thirdSource: "ThirdSource",
+      ankiExport: "AnkiExport", libGraph: "LibGraph", libSearch: "LibSearch",
+      tagCurator: "TagCurator", tagOps: "TagOps", tagMenu: "TagMenu", attachDoctor: "AttachDoctor",
+      ocr: "OcrService", automation: "Automation", autoRead: "AutoRead", noteGraph: "NoteGraph",
+      readingStats: "ReadingStats", readingProgress: "ReadingProgress", metaRules: "MetaRules",
+      discovery: "Discovery", mcp: "MCP", arxiv: "ArxivFetch", prompts: "Prompts",
+      uiTheme: "UiTheme", pdfTheme: "PdfTheme", themeToggle: "ThemeToggle", pdfInline: "PdfInline",
+      pdfDual: "PdfDual", pdfCompare: "PdfCompare", slashCommands: "SlashCommands",
+      hotkeys: "Hotkeys", refPane: "RefPane", translateX: "TranslateX", rating: "Rating",
+      titleTranslationColumn: "TitleTranslationColumn", progressColumn: "ProgressColumn",
+      ratingColumn: "RatingColumn", fulltextResolver: "FullTextResolver",
+      translateCompare: "TranslateCompare",
+    };
+    const g = typeof globalThis !== "undefined" ? globalThis : null;
+    if (!g) return;
+    const refreshed = [];
+    let hookGlobals = null;
+    try {
+      const defs = typeof ModuleGlobals !== "undefined" ? ModuleGlobals : [];
+      const def = defs.find(item => item && item.id === moduleId);
+      hookGlobals = def && Array.isArray(def.globals) ? def.globals : [];
+    } catch (e) { hookGlobals = []; }
+    for (const prop of Object.keys(bindings)) {
+      const globalName = bindings[prop];
+      const value = g[globalName];
+      if (typeof value === "undefined") continue;
+      this[prop] = value;
+      if (value && hookGlobals && hookGlobals.indexOf(globalName) >= 0
+          && (typeof value === "object" || typeof value === "function")
+          && typeof value.onModuleRefresh === "function" && refreshed.indexOf(value) < 0) {
+        refreshed.push(value);
+        try {
+          const pending = value.onModuleRefresh({ host: this, moduleId: moduleId || null });
+          if (pending && typeof pending.catch === "function") {
+            pending.catch(e => this._diag("module refresh FAILED " + moduleId + ": " + (e && (e.message || e))));
+          }
+        } catch (e) {
+          this._diag("module refresh FAILED " + moduleId + ": " + (e && (e.message || e)));
+        }
+      }
+    }
+    if (g.ArxivFetch) {
+      this.arxivCore = {
+        errors: g.ArxivErrors, dates: g.ArxivDates, query: g.ArxivQuery,
+        categories: g.ArxivCategories, atom: g.ArxivAtom, analyze: g.ArxivAnalyze,
+        rateLimiter: g.ArxivRateLimiter,
+      };
+    }
+    // 这两个迁移本身是幂等的数据初始化，不重放 restore/startAutoSync 等副作用流程。
+    if (this._initialized && moduleId === "papilot-mod-ai") {
+      try { if (this.channels && this.channels.migrateLegacy) this.channels.migrateLegacy(); } catch (e) { this._diag("module channels refresh failed: " + e); }
+      try { if (this.translateSvc && this.translateSvc.migrate) this.translateSvc.migrate(); } catch (e) { this._diag("module translate refresh failed: " + e); }
+    }
+  },
+
+  /* ---- 0.73.2 主包升级 → 已装组件自动批量更新 ----
+   * 模块化后组件版本跟主包走（papilot-modules-index.json 每次发版都更新），
+   * 用户升完主包不必再去组件商店逐个手动更新。
+   * 两个判定抽成纯函数（test/module-autoupdate.test.js 直接钉）；
+   * 执行体全程 try/catch + fire-and-forget，绝不阻塞/打断启动。 */
+
+  /** 纯函数：本轮该不该跑自动更新。enabled=开关；版本不同且有已装组件才有意义。 */
+  _moduleAutoUpdateShouldRun(opts) {
+    const o = opts || {};
+    return !!o.enabled
+      && String(o.lastVersion || "") !== String(o.version || "")
+      && (Number(o.installedCount) || 0) > 0;
+  },
+
+  /** 纯函数：从 checkUpdates 的结果里取待更新组件 id（去重、去空、保序）。 */
+  _moduleAutoUpdatePlan(updates) {
+    const out = [];
+    for (const u of (Array.isArray(updates) ? updates : [])) {
+      if (u && u.id && out.indexOf(u.id) < 0) out.push(u.id);
+    }
+    return out;
+  },
+
+  /**
+   * 主包升级后自动批量更新已装组件（P1-5）。
+   * @param version 当前主包版本
+   * @param checkResult 同一轮 ModuleStore.checkUpdates(false) 的结果（不重复拉目录）
+   */
+  async _autoUpdateModules(version, checkResult) {
+    try {
+      const last = String(Prefs.get("modulesLastHostVersion", "") || "");
+      let installedCount = 0;
+      try { installedCount = (ModuleLoader.list() || []).length; } catch (e) { installedCount = 0; }
+      if (!this._moduleAutoUpdateShouldRun({
+        enabled: Prefs.get("modulesAutoUpdate", true),
+        lastVersion: last, version, installedCount,
+      })) return;
+      // 只有本轮真实网络目录才可作为更新依据；离线/过期缓存/内置快照下轮必须重试。
+      if (!checkResult || !checkResult.ok || checkResult.fresh === false
+          || checkResult.source === "stale-cache" || checkResult.source === "builtin") return;
+      const ids = this._moduleAutoUpdatePlan(checkResult.updates);
+      let updated = 0, failed = 0;
+      // 串行逐个装：单项失败记 diag 继续下一个，不拖垮整轮
+      for (const id of ids) {
+        try {
+          const r = await ModuleStore.install(id);
+          if (r && r.ok) {
+            updated++;
+          } else {
+            failed++;
+            this._diag("module auto-update FAILED " + id + ": " + ((r && r.error) || "未知错误"));
+          }
+        } catch (e) {
+          failed++;
+          this._diag("module auto-update FAILED " + id + ": " + (e && (e.message || e)));
+        }
+      }
+      this._diag("module auto-update: updated=" + updated + " failed=" + failed);
+      // 任一项失败都不记账，下次启动可重试；只有整轮成功才标记本主版本完成。
+      if (failed === 0) Prefs.set("modulesLastHostVersion", String(version));
+    } catch (e) {
+      try { this._diag("module auto-update FAILED: " + (e && (e.message || e))); } catch (e2) { /* ignore */ }
+    }
+  },
+
+  /**
+   * 0.63.0 pdf.js 无头渲染引擎（≈320KB UMD）——懒加载入口（审查 P1-3）。
+   * 此前启动时无条件 loadSubScript，不用 OCR 的用户也白付解析/编译成本；
+   * 现延迟到 OCR 首次真正需要库时调用（OcrService._lib 包装点见 init）。
+   * 同步载入（loadSubScript 本身同步），幂等；失败只记一次诊断、置 null 降级。
+   * ⚠️ 文本形态被 check-wiring 50.x 与 test/ocr.test.js 钉住：
+   *    pdf.min.js 引用必须在模块加载循环之前、且包裹在 try/catch 中。
+   */
+  _ensurePdfjs() {
+    if (this._pdfjs || this._pdfjsFailed) return this._pdfjs;
+    try {
+      Services.scriptloader.loadSubScript(
+        this.rootURI + "chrome/content/vendor/pdfjs/pdf.min.js?v=" + this.version);
+      const pdfjs = (typeof pdfjsLib !== "undefined" && pdfjsLib) ? pdfjsLib : null;
+      if (!pdfjs) throw new Error("pdfjsLib 未挂到全局");
+      if (pdfjs.GlobalWorkerOptions) {
+        pdfjs.GlobalWorkerOptions.workerSrc =
+          this.rootURI + "chrome/content/vendor/pdfjs/pdf.worker.min.js";
+      }
+      this._pdfjs = pdfjs;
+      this._diag("pdfjs lazy loaded (version=" + (pdfjs.version || "?") + ", worker=direct)");
+    } catch (e) {
+      this._pdfjs = null;
+      this._pdfjsFailed = true;   // 失败只试一次：不反复 loadSubScript，诊断也只记一行
+      this._diag("pdfjs lazy load FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    return this._pdfjs;
+  },
+
+  /**
+   * 0.24.4 会员到期提醒：临近到期（≤1 天）或已过期时，启动后提示一次。
+   * 「同一个到期周期只提示一次」用 pref renewPromptShownFor=<expiresAt> 记住 ——
+   * 否则每次启动都弹，会变成骚扰。主窗口还没就绪时**不落标记**，留给下次。
+   */
+  async _checkRenewal() {
+    try {
+      // 0.73.0 瘦身包：未安装组件时 Account 是惰性占位（truthy），
+      // 绝不能据此弹「会员到期」模态框 —— 真机实测会把启动卡死在弹窗上。
+      if (typeof Account === "undefined" || !Account || Account.__ppFacade) return;
+      if (!Account.isLoggedIn || !Account.isLoggedIn()) return;
+      const rem = Account.renewalReminder && Account.renewalReminder();
+      if (!rem || rem.daysLeft > 1) return;
+      if (String(Prefs.get("renewPromptShownFor", "") || "") === rem.key) return;
+      const win = Zotero.getMainWindow();
+      if (!win) { this._diag("renewal reminder deferred (no main window)"); return; }
+      Prefs.set("renewPromptShownFor", rem.key);
+      const when = new Date(rem.expiresAt).toLocaleDateString();
+      const msg = rem.expired
+        ? "你的 Papilot 专业版已于 " + when + " 到期，已回落为免费版。\n\n"
+          + "打开「设置 → Papilot」可立即续费（时长叠加，不浪费剩余时间）。"
+        : "你的 Papilot 专业版仅剩 " + rem.daysLeft + " 天（" + when + " 到期）。\n\n"
+          + "打开「设置 → Papilot」可提前续费（时长叠加，不浪费剩余时间）。";
+      Services.prompt.alert(win, "Papilot 会员提醒", msg);
+      this._diag("renewal reminder shown (daysLeft=" + rem.daysLeft + ")");
+    } catch (e) {
+      this._diag("renewal reminder FAILED: " + (e && (e.stack || e.message) || e));
+    }
+  },
+
+  /**
+   * 0.55.0 品牌迁移：把 DataDirectory / ProfD 两个落点里**旧名**的数据文件
+   * 复制成新名（会话 / 聊天记录 / 期刊缓存 / 阅读统计缓存）。
+   *
+   * 只复制不删除：目标已存在就跳过（幂等），旧文件留在原处便于回滚。
+   * 单个文件失败不影响其余；整体失败由调用方兜住，不挡启动。
+   * @returns {Promise<number>} 实际复制的文件数
+   */
+  async _migrateLegacyDataFiles() {
+    const pairs = [
+      ["paperpilot-account.json", "papilot-account.json"],
+      ["paperpilot-account.1.json", "papilot-account.1.json"],
+      ["paperpilot-account.2.json", "papilot-account.2.json"],
+      ["paperpilot-chat-sessions.json", "papilot-chat-sessions.json"],
+      ["paperpilot-easyscholar.json", "papilot-easyscholar.json"],
+      ["paperpilot-rank-config.json", "papilot-rank-config.json"],
+      ["paperpilot-s2-citations.json", "papilot-s2-citations.json"],
+    ];
+    const dirs = [];
+    try {
+      const d = Zotero.DataDirectory && Zotero.DataDirectory.dir;
+      if (d) dirs.push(String(d));
+    } catch (e) { /* 数据目录未就绪：仅用 profile 落点 */ }
+    try {
+      const prof = Services.dirsvc.get("ProfD", Components.interfaces.nsIFile);
+      if (prof && prof.path) dirs.push(String(prof.path));
+    } catch (e) { /* ignore */ }
+
+    let copied = 0;
+    for (const dir of dirs) {
+      for (const [oldName, newName] of pairs) {
+        try {
+          const src = PathUtils.join(dir, oldName);
+          const dst = PathUtils.join(dir, newName);
+          if (await IOUtils.exists(dst)) continue;
+          if (!(await IOUtils.exists(src))) continue;
+          await IOUtils.copy(src, dst);
+          copied++;
+        } catch (e) { /* 单文件失败不影响其余 */ }
+      }
+    }
+    return copied;
+  },
+
+  async init({ id, version, rootURI }) {
+    if (this._initialized) return;
+    this.id = id;
+    this.version = version;
+    this.rootURI = rootURI;
+
+    // 0.63.0 PDF 无头渲染 + 视觉 OCR 的 pdf.js（3.11 UMD，chrome/content/vendor/pdfjs/，
+    // Apache-2.0，见 THIRD-PARTY-NOTICES.md）**不再随启动加载**（审查 P1-3：≈320KB UMD
+    // 的 fetch+解析+编译对不用 OCR 的用户是纯浪费）。延迟到 OCR 首次调用时由
+    // this._ensurePdfjs() 同步载入（定义在本文件顶部，装配点见下方 this.ocr 之后）。
+    // `_pdfjs` 的 null 语义不变：不可用 → OcrService 走「渲染引擎不可用」降级；
+    // worker 的三种加载方式（direct / blob / inline）仍由 OcrService.openDocument 逐级降级。
+    await this._diag("pdfjs deferred (lazy load on first OCR use)");
+
+    // 按依赖顺序加载子模块（共享同一全局作用域，var 声明互相可见）
+    const files = [
+      "core/utils.js",
+      // 0.56.0 云同步协议层（坚果云 WebDAV）：纯协议、无业务，cloud-sync.js 消费它
+      "core/webdav.js",
+      // 0.74.0 共享目录基建（两店目录拉取/TTL 缓存/失败源记忆唯一真源）：
+      // 必须先于 features/skill-packs.js 与 core/module-store.js
+      "core/catalog-client.js",
+      // 0.82.0 联系与社群：单一 JSON 配置，在线更新 + 包内离线备用；仅面板展开时拉取
+      "core/community.js",
+      "ai/providers.js",
+      "ai/account.js",
+      "ai/channels.js",
+      "ai/client.js",
+      // 0.33.0 PDF 文本结构化分析：段落块 / 公式与图注识别 / 垃圾行过滤 / 阅读器逐页取文。
+      // 必须排在 translate.js 与 bilingual-translate.js 之前（对照翻译消费它）
+      "ai/pdf-text.js",
+      // 0.28.0 多引擎翻译（0.73.0 拆分为「5 个子模块 + 门面」）：
+      //   translate-lang（语言模型）/ translate-crypto（签名算法）为纯函数零依赖；
+      //   translate-glossary（术语表域）/ translate-formula（行内公式掩码）仅依赖 Prefs；
+      //   translate-engines（引擎注册表 + 密钥）依赖前两者，须排在它们之后；
+      //   translate.js 是统一门面（配置/运行时/状态/迁移），须最后加载，
+      //   且排在 client.js 之后（llm 引擎要调 AIClient）、chat.js 与各 features 之前。
+      "ai/translate-lang.js",
+      "ai/translate-crypto.js",
+      "ai/translate-glossary.js",
+      "ai/translate-formula.js",
+      "ai/translate-engines.js",
+      "ai/translate.js",
+      // 0.4x 领域术语种子词包（设置面板「添加词包」消费；纯数据、无依赖）
+      "ai/glossary-packs.js",
+      // 0.42.0 标题/摘要译文写回（extra 行级 upsert 纯函数；须在 chat.js 之前，chat 翻译任务消费它）
+      "ai/translate-writeback.js",
+      "ai/chat.js",
+      "ai/prompts.js",
+      // 0.48.0 Agent 工具层（交互参考 Hermes Agent：任务规划 + 工具调用 + 上下文
+      // 管理）。依赖 ai/chat.js（getFullText/paperMeta）；chat-float 在其后加载消费。
+      "ai/agent-tools.js",
+      // 0.42.0 #命令标签（Prompt 标签升级版：可编辑/trigger 正则/导入导出）与 / 命令面板。
+      // 须在 prompts.js 之后（内置默认标签来源）、chat-float.js 与 workbench 之前
+      "ai/command-tags.js",
+      // 0.48.x 技能包商店（Skills Hub）核心域：提示词标签/术语/模板/Agent 预设的
+      // 安装记账与目录检索。依赖 CommandTags/NoteTemplates/TranslateSvc 均为惰性
+      // 调用（运行期经 Zotero.Papilot.* 访问），只需排在 command-tags.js 之后
+      // 加载即可；panels/chat-float.js 不依赖它，位置无碍。
+      "features/skill-packs.js",
+      // 0.56.0 坚果云统一云同步（设置/对话/技能包/安装包）：依赖 core/webdav.js；
+      // 对 SkillPacks 只在 stageSkillPacks() 里惰性调用，位置无碍
+      "features/cloud-sync.js",
+      // 0.66.0 账号与密钥中心核心域（本地免费，托管需登录）：统一收口知网 / 坚果云 / easyScholar /
+      // 自定义 AI Key 的脱敏查看、受控编辑、账号加密托管与本地审计。
+      // 对 Account / Channels 只在调用时惰性访问，故排在二者之后即可。
+      "features/cred-vault.js",
+      "ai/slash-commands.js",
+      "ai/auto-tag.js",
+      "ai/matrix.js",
+      "ai/semantic-scholar.js",
+      // 0.51.0 相关文献（S2 recommendations）：扩展 S2Client，必须在 semantic-scholar.js 之后
+      "features/s2-client.js",
+      "features/related-papers.js",
+      // 0.52.0 引文上下文（S2 citations；消费 S2Client.citations）
+      "features/citation-context.js",
+      // 0.51.0 Agent 长期记忆（agent-tools 的 memory_* 工具运行时消费）
+      "features/agent-memory.js",
+      "features/annotations.js",
+      // 0.52.0 标注→论点速记（读 PDF 标注 → AI 整理 → 父条目笔记）
+      "features/annotation-digest.js",
+      "features/collection-stats.js",
+      "features/reader-popup.js",
+      "features/pdf-compare.js",
+      "features/rule-tag.js",
+      "features/citation-trace.js",
+      // 0.33.0 参考文献一键入库重写：格式层（纯函数）→ 多源元数据层 → 编排层。
+      // 顺序即依赖顺序，不能调换：ref-import 同时消费 RefFormat 与 RefSources，
+      // 而 RefSources 复用 citation-column（CitationColumn）与 arxiv 生成物（懒调用，故只需先加载）。
+      "features/ref-format.js",
+      "features/ref-sources.js",
+      "features/ref-import.js",
+      // 0.61.0 国标参考文献导出（消费 RefFormat 的 GB/T 序列化；窗口脚本不碰 Zotero）
+      "features/cite-export.js",
+      // 0.62.0 单向导出到 Obsidian（消费 CiteExport 的记录映射与 RefFormat.gbtEntry）
+      "features/obsidian-export.js",
+      "features/fake-check.js",
+      "features/smart-cleanup.js",
+      "features/meta-enrich.js",
+      "features/bilingual-translate.js",
+      "features/cn-meta.js",
+      "features/cn-translators.js",
+      // 0.42.0 中文文献 AI 增强四层（L1 规划 / L3 裁决 / L4 融合 / P3 兜底）。
+      // 必须排在 cn-fetch.js 之前（cn-fetch 消费 CNAI）
+      "features/cn-ai.js",
+      "features/cn-fetch.js",
+      "features/reading-state.js",
+      "features/note-templates.js",
+      // 0.63.0 笔记工具（A2）：单篇大纲生成 + 多篇批量整理（标签/分类/标题前缀/合并）。
+      // 只读写 getNote()/setNote()/saveTx() 等公开接口，不依赖其它笔记模块
+      "features/note-tools.js",
+      "features/attach-manager.js",
+      "features/mindmap.js",
+      "features/review-gen.js",
+      // 0.53.0 综述工作台（多篇 → 大纲 → 分节草稿；独立窗口）
+      "features/review-workbench.js",
+      "features/meta-lint.js",
+      // 0.52.0 元数据医生（Crossref 补 DOI/期刊/年份；写操作走审计撤销）
+      "features/meta-doctor.js",
+      // 0.27.0 Sci-Hub / Sci-Net 补全文（Unpaywall 未命中时的补充渠道；须排在 oa-fetch 之前）
+      "features/scihub.js",
+      "features/oa-fetch.js",
+      // 0.44.0（实验）第三方文献源（文献虫/毕业助手）：登录自检 + 入口直达（Pro 试用）
+      "features/third-source.js",
+      // 0.42.0 原生 Find Full Text 集成：把 Unpaywall/Sci-Hub 链注册为 Zotero 内置 findPDFs resolvers
+      "features/fulltext-resolver.js",
+      "features/anki-export.js",
+      "features/lib-graph.js",
+      // 0.22.0 库内问答 / 标签治理 / 附件体检
+      "features/lib-search.js",
+      "features/tag-curator.js",
+      // 0.70.0 标签管理：数据/规则层（TagOps）+ 左下角右键入口（TagMenu）。
+      // 顺序硬约束：tag-ops 必须先于 tag-menu（后者 install 时直接引用 TagOps.protectList）。
+      "features/tag-ops.js",
+      "features/tag-menu.js",
+      // 0.42.0 翻译多引擎同屏对比小窗（翻译面板「对比引擎」按钮调起）
+      "features/translate-compare.js",
+      "features/attach-doctor.js",
+      // 0.63.0 PDF 无头渲染 + 视觉 OCR（扫描件补全文）：消费**懒加载**的 pdfjsLib
+      // （首次 openDocument 时才载入，见 _ensurePdfjs 与下方装配点）与
+      // AIClient（运行期惰性调用）、attach-doctor 的 noText 检测结果。OcrService 只在
+      // 菜单/问答回退时按需调用，故对加载顺序无依赖，紧跟 attach-doctor 便于对照阅读。
+      "features/ocr.js",
+      // 0.23.0 自动化引擎 + 入库自动精读（阶段 2）
+      "features/automation.js",
+      "features/auto-read.js",
+      // 0.23.0 笔记关系图谱 + 阅读行为统计（阶段 2 第二批）
+      "features/note-graph.js",
+      "features/reading-stats.js",
+      // 0.49.0 定时任务（研究晨报/阅读周报/库体检；依赖 reading-stats / meta-lint 的运行时探测）
+      "features/scheduler.js",
+      // 0.69.0 期刊订阅内置目录（全局 JournalCatalog：525 种跨学科期刊的 ISSN/学科/别名）。
+      // 必须在 search-subs.js 之前加载——面板首次渲染就要用它做本地即时过滤。
+      "data/journals.js",
+      // 0.57.0 检索订阅 v2 的多源适配层（必须排在 search-subs.js 之前：
+      // 后者在运行时经全局 SubSources 取 arXiv/OpenAlex/Crossref/PubMed）
+      "features/sub-sources.js",
+      // 0.53.0 检索订阅（ArxivFetch 消费；独立 60s 轮询）
+      "features/search-subs.js",
+      // 0.71.0 订阅落地桥：把订阅落到「库内分类 + 原生 RSS」两处用户看得见的地方。
+      // 必须排在 search-subs.js 之后（入库钩子要用它），prefs-subs.js 之前。
+      "features/subs-bridge.js",
+      // 0.46.0 阅读进度 2.0：位置进度数据域（心跳捕获 + 原生上次位置 + 标注页融合）。
+      // 须排在 reading-stats.js 之后（复用其焦点解析 activeReader）与
+      // progress-column.js 之前（列的 lookup 走它的 compute/entryOf）
+      "features/reading-progress.js",
+      // 0.25.0 arXiv 核心：由 scripts/build-arxiv-core.py 从 tools/arxiv/src 生成
+      // （纯函数、不含 Zotero 依赖；必须按依赖序排在 discovery.js 之前。
+      //  改了 tools 侧逻辑要重跑生成器，preflight 会拦住忘记生成的情况。）
+      "arxiv/arxiv-errors.js",
+      "arxiv/arxiv-dates.js",
+      "arxiv/arxiv-query.js",
+      "arxiv/arxiv-categories.js",
+      "arxiv/arxiv-atom.js",
+      "arxiv/arxiv-analyze.js",
+      "arxiv/arxiv-rate-limiter.js",
+      "arxiv/arxiv-fetch.js",
+      // 0.24.0 阶段 3：元数据规则补齐 / 文献发现（arXiv 日推）/ MCP 对外供给
+      "features/meta-rules.js",
+      "features/discovery.js",
+      "features/mcp.js",
+      "features/ui-theme.js",
+      "features/pdf-theme.js",
+      // 0.25.1 主题切换按钮：界面主题（主窗口左上角）+ PDF 阅读主题（阅读器工具栏），二者分开
+      "features/theme-toggle.js",
+      // 0.38.0 顶部快捷按钮：条目工具栏一键菜单（高频直达项 + 功能中心 + 设置）
+      "features/toolbar-quick.js",
+      // 0.34.0 PDF 页内叠加内核：读 pdf.js textLayer 坐标 → 译文按段叠加回原页位置。
+      // 依赖 ai/pdf-text.js（viewerOf/classify 单一真源）与 ai/translate.js，故排在其后。
+      // 0.36.0 起它降级为**内核**（不再注入阅读器工具栏），仍被下列模块复用。
+      "features/pdf-inline.js",
+      // 0.36.0 PDF 对照翻译（左原右译双栏窗口）：右栏 = 同一 PDF 的 mono 译文视图，
+      // 复用 PdfInline 内核做提取/翻译/注入 → 必须排在 pdf-inline.js 之后
+      "features/pdf-dual.js",
+      // 0.39.0 对照翻译导出（双语 PDF 附件 / HTML / Markdown / Word）：
+      // 从内核 state 取段落 + 右栏 canvas 叠画 → 零依赖自建 PDF 等；排在 pdf-inline 之后
+      "features/pdf-export.js",
+      // 0.37.1 更新提示：Zotero 的插件更新是静默的，这里补一次可见反馈
+      "features/update-notice.js",
+      // 0.42.0 星标评级（★×n 单标签；评级列与右键菜单共用）
+      "features/rating.js",
+      "columns/rank-column.js",
+      "columns/citation-column.js",
+      // 0.42.0 三个新列：标题译文 / 阅读进度条 / 星标评级（rating.js 须在 rating-column 之前）
+      "columns/title-translation-column.js",
+      "columns/progress-column.js",
+      "columns/rating-column.js",
+      // 0.42.0 快捷键中央注册表（pref 驱动可自定义；须在 chat-float 之前加载并 init）
+      "features/hotkeys.js",
+      "panels/ai-chat-pane.js",
+      "panels/glance-pane.js",
+      // 0.30.0 阅读器右侧栏 · 翻译面板（划词即译 / 换引擎 / 全文对照 一处搞定）
+      "panels/translate-pane.js",
+      // 0.42.0 阅读器右侧栏 · 参考文献面板（自动解析当前 PDF 参考文献，+ 一键入库双向关联；
+      // 消费 ref-format/ref-sources/ref-import，故排在 panels 段最后）
+      "panels/ref-pane.js",
+      // 0.49.0 浮窗会话持久化（跨重启恢复 + 历史浏览；chat-float 消费）
+      "features/chat-sessions.js",
+      // 0.31.0 AI 问答悬浮窗（可拖动/停靠/分屏；唤起：快捷键/阅读器按钮/右键/划词）
+      "panels/chat-float.js",
+      // 0.68.1 WPS 集成桥（检测 WPS 加载项/信任/代理；设置面板经 Zotero.Papilot.wpsBridge 访问）
+      "features/wps-bridge.js",
+      // 0.73.0 模块化运行时（组件商店地基）：主包只留骨架，功能组件按需下载。
+      // 必须在 menus.js 之前 —— 菜单要读 moduleStore 判断入口可用性。
+      // modules-globals.js 是构建期生成的「组件→全局名」映射（瘦身包装桩用）。
+      "modules-globals.js",
+      "core/module-loader.js",
+      "core/module-store.js",
+      "menus.js",
+    ];
+    for (const f of files) {
+      try {
+        // ?v= 缓存破坏：与 bootstrap 同理，防止热升级时加载到旧编译缓存
+        Services.scriptloader.loadSubScript(rootURI + "chrome/content/scripts/" + f + "?v=" + version);
+      } catch (e) {
+        // 单个模块失败不拖垮整个插件：记录后继续，功能按模块独立降级
+        await this._diag("loadSubScript FAILED " + f + ": " + (e && (e.stack || e.message) || e));
+      }
+    }
+    await this._diag("subscripts loaded");
+
+    // 0.54.1（审查 P0-1）：把历史版本误写到双前缀孤儿键的值搬回规范命名空间。
+    // 必须在任何模块 register/渲染（会读这些 pref）之前完成；幂等，失败不影响启动。
+    try {
+      const moved = Prefs.migrateLegacyNamespace();
+      if (moved) await this._diag("pref namespace migrated: " + moved);
+    } catch (e) { /* 迁移失败不影响启动 */ }
+
+    // 0.55.0 品牌迁移（PaperPilot → Papilot）：旧 pref 分支与旧数据文件搬到新名。
+    // 同样必须早于模块初始化（Account 读会话文件、各模块读 pref）；幂等。
+    try {
+      const movedPrefs = Prefs.migrateLegacyBrand();
+      const movedFiles = await this._migrateLegacyDataFiles();
+      if (movedPrefs || movedFiles) {
+        await this._diag("brand migrated prefs=" + movedPrefs + " files=" + movedFiles);
+      }
+    } catch (e) { /* 迁移失败不影响启动 */ }
+
+    // 0.73.0 模块化运行时（组件商店地基）
+    // 主包只留骨架；已装组件在此处载入（scope 模式进共享作用域）。
+    // 无已装组件时 = 读一次不存在的 installed.json，纯 no-op，不拖慢启动。
+    try {
+      this.moduleLoader = ModuleLoader;
+      this.moduleStore = ModuleStore;
+      ModuleStore.init({ loader: ModuleLoader });
+      const mr = await ModuleLoader.init({ hostVersion: version });
+      await this._diag("modules ready: loaded=" + mr.loaded + " skipped=" + mr.skipped);
+      // 瘦身包：未安装组件声明过的全局先装惰性桩，后面的 this.account = Account
+      // 这类裸引用才不会 ReferenceError（完整包全部已定义 → 一个桩都不装）。
+      try {
+        const mg = (typeof ModuleGlobals !== "undefined") ? ModuleGlobals : [];
+        const nFacade = ModuleLoader.installFacades(mg);
+        if (nFacade) await this._diag("module facades: " + nFacade);
+        // 0.73.2：不再首启弹窗引导下载合集（用户反馈太打扰）。
+        // 按需入口收敛到「设置 → 组件管理」卡片与「工具 → 组件商店」。
+      } catch (e) {
+        await this._diag("module facades FAILED: " + (e && (e.message || e)));
+      }
+      // 主包升级后的首轮检查必须穿透 12h 缓存，否则旧目录会让新组件永远不更新。
+      // 同主版本、无已装组件或关闭自动更新时仍走缓存；fresh 失败不记账，下轮继续 force。
+      let forceUpdateCheck = false;
+      try {
+        forceUpdateCheck = this._moduleAutoUpdateShouldRun({
+          enabled: Prefs.get("modulesAutoUpdate", true),
+          lastVersion: String(Prefs.get("modulesLastHostVersion", "") || ""),
+          version,
+          installedCount: (ModuleLoader.list() || []).length,
+        });
+      } catch (e) { forceUpdateCheck = false; }
+      // fire-and-forget：失败静默，绝不挡启动；本轮结果同时供自动更新复用。
+      ModuleStore.checkUpdates(forceUpdateCheck).then(r => {
+        if (r && r.ok && r.updates.length) {
+          this._diag("module updates available: "
+            + r.updates.map(u => u.id + "@" + u.version).join(","));
+        }
+        // 0.73.2 主包升级 → 已装组件自动批量更新（复用这一轮结果，不再拉目录）
+        this._autoUpdateModules(version, r);
+      }).catch(() => { /* 离线即忽略 */ });
+
+      // 自检钩子（默认关，仅 pref 显式设置时执行一次）：
+      // 真机验证「下载 → sha256 校验 → 原子安装 → 加载」整条链路。
+      // **绝不 await**：安装失败/离线都不能把启动拖住（真机实测过挂起）。
+      try {
+        const stId = Prefs.get("modulesSelftestInstall", "");
+        if (stId) {
+          Prefs.set("modulesSelftestInstall", "");
+          this._diag("module selftest: install " + stId + " (deferred)");
+          // 必须等 init 走完再装：中途换掉全局会让后面的装配拿到半新半旧的模块。
+          const later = (fn, ms) => {
+            try {
+              const w = Zotero.getMainWindow();
+              if (w && w.setTimeout) return w.setTimeout(fn, ms);
+            } catch (e) { /* ignore */ }
+            return setTimeout(fn, ms);
+          };
+          later(() => {
+            this._diag("module selftest: begin " + stId);
+            Promise.resolve(ModuleStore.install(stId)).then(sr => {
+              this._diag("module selftest: " + (sr && sr.ok ? "ok " : "FAILED ")
+                + (sr && sr.version ? sr.version : (sr && sr.error ? sr.error : "")));
+            }).catch(e => {
+              this._diag("module selftest FAILED: " + (e && (e.message || e)));
+            });
+          }, 8000);
+        }
+      } catch (e) {
+        this._diag("module selftest FAILED: " + (e && (e.message || e)));
+      }
+    } catch (e) {
+      await this._diag("module runtime init FAILED: " + (e && (e.stack || e.message) || e));
+      this.moduleLoader = this.moduleLoader || null;
+      this.moduleStore = this.moduleStore || null;
+    }
+
+    // 暴露给设置窗口脚本（prefs-pane.js / prefs-account.js 运行在设置窗口作用域，
+    // 访问不到 bootstrap 作用域，但能访问 Zotero 全局）
+    this.providers = AIProviders;
+    // 0.14.0 账号系统 + 模型通道（面板与各窗口脚本经此访问）
+    this.account = Account;
+    this.channels = Channels;
+    // 0.28.0 多引擎翻译：设置面板脚本经此访问引擎注册表与配置
+    this.translateSvc = TranslateSvc;
+    // 0.4x 领域术语种子词包（设置面板「添加词包」经此读取）
+    this.glossaryPacks = GlossaryPacks;
+    // 0.33.0 PDF 文本结构化分析（对照翻译消费；排障/测试经此访问）
+    this.pdfText = PdfText;
+    // 0.29.0 菜单瘦身：设置面板脚本经此读取菜单注册表与 i18n（单一真源，
+    // 面板里的分组/直达项定制直接遍历 Menus.ITEM_REGISTRY / GROUPS 渲染）
+    this.menus = Menus;
+    this.i18n = I18n;
+    this.rankColumn = RankColumn;
+    this.citationColumn = CitationColumn;
+    this.s2 = S2Client;
+    this.ruleTag = RuleTag;
+    this.citationTrace = CitationTrace;
+    // 0.33.0 参考文献一键入库（菜单/功能中心/对话框经此访问；对话框经 windowApi 注入回调）
+    this.refImport = RefImport;
+    this.fakeCheck = FakeCheck;
+    this.smartCleanup = SmartCleanup;
+    this.metaEnrich = MetaEnrich;
+    // 工作台独立窗口需要（窗口脚本访问不到 bootstrap 作用域）
+    this.aiChat = AIChat;
+    this.aiClient = AIClient;
+    this.notes = Notes;
+    this.mdLite = MdLite;
+    // 0.12.0 功能中心需要：全部功能模块引用（hub 窗口脚本同样只能经这里访问）
+    this.menus = Menus;
+    this.autoTag = AutoTag;
+    this.matrix = Matrix;
+    this.annotations = Annotations;
+    this.collectionStats = CollectionStats;
+    this.bilingual = BilingualTranslate;
+    // 0.30.0 阅读器右侧栏翻译面板（功能中心/排障经此访问）
+    this.translatePane = TranslatePane;
+    // 0.31.0 AI 问答悬浮窗（分屏窗口脚本经 window.arguments 的 Zotero 访问；
+    // 会话与发送逻辑单源在 ChatFloat）
+    this.chatFloat = ChatFloat;
+    // 0.48.x 技能包商店（Skills Hub）：设置面板 / 商店窗口经此访问 SkillPacks 核心域
+    this.skillPacks = SkillPacks;
+    // 0.82.0 联系与社群（设置面板 prefs-community.js 经此访问）
+    this.community = (typeof Community !== "undefined") ? Community : null;
+    if (this.community) this.community.init({ rootURI: rootURI });
+    // 0.56.0 坚果云统一云同步（设置面板 prefs-cloud.js 经此访问；测试/排障同入口）
+    // 防御式赋值：模块加载失败时置 null，避免一行 ReferenceError 把整个 init 带崩
+    this.cloudSync = (typeof CloudSync !== "undefined") ? CloudSync : null;
+    // 0.66.0 账号与密钥中心（本地免费，托管需登录）：窗口脚本与设置面板经此访问
+    this.credVault = (typeof CredVault !== "undefined") ? CredVault : null;
+    // 0.68.1 WPS 集成桥（设置面板 prefs-wps.js 经此访问：检测/修复/代理）
+    // 只装代理与注册项；加载项本体是 GPL-3.0，不随本插件分发
+    this.wpsBridge = (typeof WpsBridge !== "undefined") ? WpsBridge : null;
+    try {
+      if (this.wpsBridge) this.wpsBridge.init({ rootURI });
+    } catch (e) {
+      this.wpsBridge = null;   // 路径解析失败不影响启动
+    }
+    // 0.49.0 浮窗会话持久化 + 定时任务（设置面板 prefs-schedule.js 经此访问 Scheduler）
+    this.chatSessions = ChatSessions;
+    this.scheduler = Scheduler;
+    // 0.51.0 Agent 长期记忆（设置面板 prefs-memory.js / system prompt 注入 / agent-tools 工具）
+    this.agentMemory = AgentMemory;
+    // 0.52.0 元数据医生 / 标注速记（菜单与 hub 经此访问）
+    this.metaDoctor = MetaDoctor;
+    this.annotationDigest = AnnotationDigest;
+    // 0.53.0 检索订阅 / 综述工作台（0.57.0 起订阅增加多源适配层 SubSources）
+    this.searchSubs = SearchSubs;
+    this.subSources = (typeof SubSources !== "undefined") ? SubSources : null;
+    // 0.71.0 订阅落地桥（分类 + 原生 RSS；设置面板与排障共用入口）
+    this.subsBridge = (typeof SubsBridge !== "undefined") ? SubsBridge : null;
+    this.reviewWorkbench = ReviewWorkbench;
+    // 0.48.0 Agent 工具层 + 命令标签（设置面板 prefs-agent.js 经此访问；
+    // 测试与排障同入口）
+    this.agentTools = AgentTools;
+    this.commandTags = CommandTags;
+    this.cnMeta = CNMeta;
+    this.cnTranslators = CNTranslators;
+    this.cnFetch = CNFetch;
+    this.cnVerify = CNVerify;
+    // 0.43.0 知网个人账号登录（静默 SM2 登录 + 滑块回退官方页自动填充；排障经此）
+    this.cnAuth = CNAuth;
+    this.readingState = ReadingState;
+    this.noteTemplates = NoteTemplates;
+    // 0.63.0 笔记工具（A2）：窗口脚本经 Zotero.Papilot.noteTools 反向调用（与 noteGraph 同模式）
+    this.noteTools = NoteTools;
+    this.attachManager = AttachManager;
+    this.mindmap = MindMap;
+    this.reviewGen = ReviewGen;
+    this.metaLint = MetaLint;
+    this.oaFetch = OAFetch;
+    // 0.27.0 Sci-Hub / Sci-Net 补全文（排障与设置窗口经此访问）
+    this.scihub = SciHub;
+    // 0.44.0（实验）第三方文献源（设置面板/菜单经此访问）
+    this.thirdSource = ThirdSource;
+    this.ankiExport = AnkiExport;
+    this.libGraph = LibGraph;
+    // 0.22.0 库内问答 / 标签治理 / 附件体检（功能中心与 lib-ask 窗口经此访问）
+    this.libSearch = LibSearch;
+    this.tagCurator = TagCurator;
+    // 0.70.0 标签管理：数据层与左下角入口（排障/测试经此访问）
+    this.tagOps = (typeof TagOps !== "undefined") ? TagOps : null;
+    this.tagMenu = (typeof TagMenu !== "undefined") ? TagMenu : null;
+    this.attachDoctor = AttachDoctor;
+    // 0.63.0 PDF 无头渲染 + 视觉 OCR（菜单/问答回退/排障经此访问；加载失败置 null 防崩）
+    this.ocr = (typeof OcrService !== "undefined") ? OcrService : null;
+    // 审查 P1-3：pdf.js 懒加载装配点。`_lib()` 是 OcrService 取 pdfjsLib 的唯一入口
+    // （openDocument / runForSelected 的引擎闸门 / _numPages 全走它），包一层：
+    // 首次取不到库时先 _ensurePdfjs() 同步载入再重取；载入失败 _lib() 仍返回 null，
+    // 各调用点照常走「渲染引擎不可用」降级（`_pdfjs` 的 null 语义不变）。
+    try {
+      if (this.ocr && typeof this.ocr._lib === "function" && !this.ocr._lib._ppLazyPdf) {
+        const origLib = this.ocr._lib;
+        const self = this;
+        this.ocr._lib = function () {
+          let r = null;
+          try { r = origLib.apply(this, arguments); } catch (e) { r = null; }
+          if (r) return r;
+          try { self._ensurePdfjs(); } catch (e) { /* 降级交给原流程 */ }
+          try { return origLib.apply(this, arguments); } catch (e) { return null; }
+        };
+        this.ocr._lib._ppLazyPdf = true;
+        await this._diag("pdfjs lazy loader armed (on first OCR _lib miss)");
+      }
+    } catch (e) {
+      await this._diag("ocr lazy-pdfjs wiring FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    // 0.23.0 自动化（对话框与菜单经此访问）
+    this.automation = Automation;
+    this.autoRead = AutoRead;
+    // 0.23.0 笔记关系图谱 + 阅读统计
+    this.noteGraph = NoteGraph;
+    this.readingStats = ReadingStats;
+    // 0.46.0 阅读进度数据域（设置面板/右键重置/排障经此访问）
+    this.readingProgress = ReadingProgress;
+    // 0.24.0 阶段 3：元数据体检 / 文献发现 / MCP
+    this.metaRules = MetaRules;
+    this.discovery = Discovery;
+    this.mcp = MCP;
+    // 0.25.0 arXiv 核心（生成物）：窗口脚本与排障经此访问
+    this.arxiv = ArxivFetch;
+    this.arxivCore = {
+      errors: ArxivErrors,
+      dates: ArxivDates,
+      query: ArxivQuery,
+      categories: ArxivCategories,
+      atom: ArxivAtom,
+      analyze: ArxivAnalyze,
+      rateLimiter: ArxivRateLimiter,
+    };
+    // 0.13.0 工作台 2.0 需要：Prompt 技能库
+    this.prompts = Prompts;
+    // 0.16.0 主题系统：设置面板脚本经此访问主题库与切换接口
+    this.uiTheme = UiTheme;
+    this.pdfTheme = PdfTheme;
+    // 0.25.1 主题切换按钮：界面主题（主窗口）+ PDF 阅读主题（阅读器）
+    this.themeToggle = ThemeToggle;
+    // 0.34.0/0.36.0 PDF 页内叠加内核（PdfDual 右栏经此复用；设置面板读它就绪状态）
+    this.pdfInline = PdfInline;
+    // 0.36.0 PDF 对照翻译（左原右译双栏窗口；菜单/工作台/功能中心/翻译面板经此调起）
+    this.pdfDual = PdfDual;
+    // 0.21.0 多篇 PDF 并排对比（菜单/功能中心经此调起；窗口脚本经 window.arguments 拿引用）
+    this.pdfCompare = PdfCompare;
+    // 0.42.0 新装配：#命令标签 / 命令面板 / 快捷键注册表 / 参考文献面板 / 新列 / resolver 等
+    this.commandTags = CommandTags;
+    this.slashCommands = SlashCommands;
+    this.hotkeys = Hotkeys;
+    this.refPane = RefPane;
+    this.translateX = TranslateX;
+    this.rating = Rating;
+    this.titleTranslationColumn = TitleTranslationColumn;
+    this.progressColumn = ProgressColumn;
+    this.ratingColumn = RatingColumn;
+    this.fulltextResolver = FullTextResolver;
+    this.translateCompare = TranslateCompare;
+
+    // 一次性迁移：aiTemperature 旧版本默认是浮点 0.3，被 Mozilla int pref 截断成 0；
+    // 0.4.0 起改存字符串。若用户 pref 仍是 int 类型则清掉，让新的字符串默认值生效
+    try {
+      const tempKey = Prefs.PREFIX + "aiTemperature";
+      if (Services.prefs.getPrefType(tempKey) === Services.prefs.PREF_INT) {
+        Services.prefs.clearUserPref(tempKey);
+        await this._diag("migrated aiTemperature int -> string default");
+      }
+    } catch (e) {
+      await this._diag("pref migration failed: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.14.0：旧版单通道配置/快照 → 模型通道体系（幂等）；随后恢复账号会话
+    // （restore 含网络校验，异步执行不阻塞启动；完成后 UI 经 onSessionChanged 对齐）
+    try {
+      Channels.migrateLegacy();
+      await this._diag("channels migrated (active=" + (Channels.list().active) + ")");
+    } catch (e) {
+      await this._diag("channels migration FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    // 0.28.0：翻译引擎一次性迁移（目标语言显示名 → 规范码；初始化 translateCfg）
+    try {
+      TranslateSvc.migrate();
+      await this._diag("translate engine ready (active=" + TranslateSvc.cfg().active +
+        ", target=" + TranslateSvc.targetCode() + ")");
+    } catch (e) {
+      await this._diag("translate migration FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    // 0.15.0 一次性迁移：不再开放自建后台——清掉指向本地的旧服务器地址（设置界面
+    // 已无服务器入口，残留 127.0.0.1 会让老用户升级后登录永远失败）。执行一次后打标。
+    try {
+      if (!Prefs.get("accountServerMigrated15", false)) {
+        const curSrv = String(Prefs.get("accountServerUrl", "") || "");
+        if (curSrv && /127\.0\.0\.1|localhost/i.test(curSrv)) {
+          Prefs.set("accountServerUrl", ""); // 空值回落官方默认（account.js SERVER_DEFAULT）
+          await this._diag("accountServerUrl reset to official (self-host sunset)");
+        }
+        Prefs.set("accountServerMigrated15", true);
+      }
+    } catch (e) {
+      await this._diag("account server migration FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    try {
+      // 0.23.0：restore 完成后做一次会话仓库自检，把「几份副本 / 最新一份来自哪里 /
+      // 是否已登录 / 落盘结果」写进启动日志。下次再出现「更新后掉登录」，
+      // boot.log 第一段就能给出结论，不必靠 account.log 逐行倒推。
+      //
+      // 0.68.3：把这条链的 promise 存下来（`_accountRestore`）。会话是**异步读盘**的，
+      // 之前没人等它，导致启动后紧接着判断 `isLoggedIn()` 一律为 false —— 首启向导
+      // 因此把已登录的老用户当成新用户（重复弹窗根因之一）。其余启动流程仍不阻塞。
+      this._accountRestore = Account.restore()
+        .then(() => Account.selfCheck())
+        .then((snap) => this._diag(snap))
+        .then(() => this._checkRenewal())   // 0.24.4：临近到期/已过期提示一次
+        .catch((e) => this._diag("account restore/selfCheck failed: " + (e && e.message)));
+      await this._diag("account restore scheduled");
+    } catch (e) {
+      this._accountRestore = null;
+      await this._diag("account restore schedule FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.56.0 云同步：配置了自动同步间隔就在启动后恢复定时器（未登录/关闭时内部自会跳过）
+    try {
+      if (this.cloudSync && this.cloudSync.startAutoSync()) {
+        await this._diag("cloud auto sync scheduled");
+      }
+    } catch (e) {
+      await this._diag("cloud auto sync FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // WPS 集成：代理没在跑就拉起来（仅当本机确实装过 Papilot Cite；没装过不会起进程）
+    // 审查 P1-2：不再 await——ensureProxy 含 800ms 健康探测 + 可能起进程后轮询最长 ~3s，
+    // 串行 await 会把这段网络等待塞进启动关键路径。改为 fire-and-forget，日志保留。
+    try {
+      if (this.wpsBridge) {
+        Promise.resolve(this.wpsBridge.ensureProxy())
+          .then((ok) => { if (ok) this._diag("wps proxy ensured"); })
+          .catch((e) => this._diag("wps proxy FAILED: " + (e && (e.stack || e.message) || e)));
+        await this._diag("wps proxy ensure scheduled (non-blocking)");
+      }
+    } catch (e) {
+      await this._diag("wps proxy FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 注册设置面板（prefs.xhtml 为 fragment，配套脚本处理测试连接/文件选择）
+    // 显式给稳定 id：openPreferences(paneID) 导航需要它（自动生成的 id 带随机串，
+    // 且传 pluginID 给 openPreferences 无法定位面板——Z10 preferences.js 实证）
+    // 0.15.0：stylesheets = 设置面板主题样式（prefs.css，随系统明暗切换；
+    // 官方推荐通道，避免在 fragment 里内嵌 <html:style>）
+    // 0.37.2：★ 注册前先把 prefs.xhtml 读出来自查一遍。fragment 解析失败时 Zotero 的表现是
+    // **设置面板整块空白**、日志里也没有明显报错（曾因一个 `&nbsp;` 让面板空白了三个版本），
+    // 所以这里主动校验，把原因写进 boot 日志。
+    // 注：**不用 DOMParser** —— 它在 bootstrap 作用域不一定可用（实测第一次就静默失败），
+    // 这里用零依赖的「未定义实体扫描」（正是本次故障的类型）+ 括号配对粗检。
+    try {
+      // 用 fetch 读包内资源：Zotero.File.getContentsAsync 不支持 jar:/chrome:// 形式的 URL
+      // （实测抛 NS_ERROR_FAILURE [nsIURI.username]）
+      const pRes = await fetch(rootURI + "chrome/content/prefs.xhtml");
+      const pStr = String(await pRes.text());
+      const pBad = pStr.match(/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)[a-zA-Z][a-zA-Z0-9]*;/g) || [];
+      if (pBad.length) {
+        await this._diag("prefs.xhtml 有 XML 未定义实体（设置面板会整块空白！）: " +
+          pBad.slice(0, 5).join(" "));
+      } else {
+        await this._diag("prefs.xhtml ok（" + pStr.length + " 字节，无未定义实体）");
+      }
+    } catch (e) {
+      await this._diag("prefs.xhtml 读取失败: " + (e && (e.message || e)));
+    }
+    try {
+      this._paneID = await Zotero.PreferencePanes.register({
+        pluginID: id,
+        id: "papilot-prefs",
+        src: rootURI + "chrome/content/prefs.xhtml",
+        scripts: [
+          rootURI + "chrome/content/prefs-fold.js",
+          rootURI + "chrome/content/prefs-pane.js",
+          rootURI + "chrome/content/prefs-account.js",
+          // 0.43.1 知网账号卡片（登录类入口收敛到设置面板）
+          rootURI + "chrome/content/prefs-cnki.js",
+          // 0.44.0（实验）第三方文献源卡片
+          rootURI + "chrome/content/prefs-third-source.js",
+          rootURI + "chrome/content/prefs-translate.js",
+          rootURI + "chrome/content/prefs-menu.js",
+          rootURI + "chrome/content/prefs-theme.js",
+          // 0.42.0 快捷键卡片（录制/改键/开关）+ 面板锚点目录
+          rootURI + "chrome/content/prefs-hotkeys.js",
+          // 0.48.0 AI 参数卡片扩展（Agent 工具开关 / System Prompt 预设 / 命令标签管理）
+          rootURI + "chrome/content/prefs-agent.js",
+          // 0.48.x 技能商店卡片（已安装列表 / 剪贴板导入 / 目录源）
+          rootURI + "chrome/content/prefs-skill.js",
+          // 0.49.0 定时任务卡片（研究晨报 / 阅读周报 / 库体检）
+          rootURI + "chrome/content/prefs-schedule.js",
+          // 0.51.0 AI 记忆列表（浏览/删除/清空）
+          rootURI + "chrome/content/prefs-memory.js",
+          // 0.53.0 检索订阅列表（新建/立即运行/删除）
+          rootURI + "chrome/content/prefs-subs.js",
+          // 0.56.0 坚果云云同步（登录/策略/数据集/进度/日志）
+          rootURI + "chrome/content/prefs-cloud.js",
+          // 0.68.0 「推荐配置」与向导入口（工具条两个按钮）
+          rootURI + "chrome/content/prefs-recommend.js",
+          // 0.68.1 WPS 集成卡片（检测链路 / 一键修复 / 起停 CORS 代理）
+          rootURI + "chrome/content/prefs-wps.js",
+          // 0.73.2 组件管理卡片（按需安装 / 更新 / 卸载；替代首启弹窗引导）
+          rootURI + "chrome/content/prefs-modules.js",
+          // 0.82.0 联系与社群（配置驱动，二维码按需加载）
+          rootURI + "chrome/content/prefs-community.js",
+        ],
+        stylesheets: [
+          rootURI + "chrome/content/prefs.css",
+        ],
+        label: "Papilot",
+        image: "chrome://papilot/content/icons/icon.png",
+      });
+      await this._diag("PreferencePanes registered paneID=" + this._paneID);
+    } catch (e) {
+      await this._diag("PreferencePanes FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // UI 相关要等主窗口就绪（带超时兜底，永不挂死）
+    await Promise.race([
+      Zotero.uiReadyPromise,
+      new Promise((resolve) => setTimeout(resolve, 15000)),
+    ]);
+    await this._diag("ui ready (or timed out)");
+
+    // 首次使用向导（0.68.0 / 0.68.3）：只在「从未走过 + 还没配过」时弹一次。
+    // 延迟 3s 是为了避开 Zotero 自己的欢迎页/启动焦点争抢；失败不影响启动。
+    //
+    // ★ 0.68.3 修的两个逻辑错误：
+    //   ① 必须在 `Account.restore()` 落定之后判断登录态——否则读盘还没完成，
+    //      已登录老用户被当成未登录，向导照弹（用户看到的是「我已登录还被反复引导」）；
+    //   ② 已登录 / 已有自定义通道的人不再自动弹，并补写 wizardDone=skipped，
+    //      免得每次启动都重新判一遍、哪次状态慢一拍就又弹出来。
+    try {
+      const restored = this._accountRestore || Promise.resolve();
+      restored
+        .catch(() => {})                       // 恢复失败按未登录处理，不挡启动
+        .then(() => this._maybeFirstRunWizard())
+        .catch((e) => this._diag("first-run wizard gate FAILED: " + (e && e.message || e)));
+      await this._diag("first-run wizard gate armed (after account restore)");
+    } catch (e) {
+      await this._diag("first-run wizard FAILED: " + (e && e.message || e));
+    }
+
+    // 期刊分区列
+    if (Prefs.get("rankColumnEnabled", true)) {
+      try {
+        await RankColumn.load(rootURI);
+        await RankColumn.register(id);
+        await this._diag("rank column registered");
+      } catch (e) {
+        await this._diag("rank column FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+
+    // 被引量列（Semantic Scholar）
+    if (Prefs.get("citationColumnEnabled", true)) {
+      try {
+        await CitationColumn.register(id);
+        await this._diag("citation column registered");
+      } catch (e) {
+        await this._diag("citation column FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+
+    // AI 问答侧栏
+    try {
+      AIChatPane.register(id);
+      await this._diag("chat pane registered");
+    } catch (e) {
+      await this._diag("chat pane FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // PDF 速览侧栏（0.11.0）
+    try {
+      GlancePane.register(id);
+      await this._diag("glance pane registered");
+    } catch (e) {
+      await this._diag("glance pane FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 翻译面板（0.30.0）：右侧栏的翻译「操作 + 选项 + 结果」入口
+    try {
+      TranslatePane.register(id);
+      await this._diag("translate pane registered");
+    } catch (e) {
+      await this._diag("translate pane FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 参考文献面板（0.42.0）：右侧栏自动解析当前文献的参考文献，+ 一键入库双向关联
+    try {
+      RefPane.register(id);
+      await this._diag("refs pane registered");
+    } catch (e) {
+      await this._diag("refs pane FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.52.0 条目详情「引文上下文」面板（S2 citations；开关 citationContextEnabled）
+    try {
+      if (Prefs.get("citationContextEnabled", true) && typeof CitationContext !== "undefined" && CitationContext) {
+        const _cc = CitationContext.register(id);
+        await this._diag("citation context pane " + (_cc ? "registered" : "unavailable"));
+      }
+    } catch (e) {
+      await this._diag("citation context FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.51.0 条目详情「相关文献」面板（S2 推荐；开关 relatedPapersEnabled，失败静默降级）
+    try {
+      if (Prefs.get("relatedPapersEnabled", true) && typeof RelatedPapers !== "undefined" && RelatedPapers) {
+        const _rp = RelatedPapers.register(id);
+        await this._diag("related papers pane " + (_rp ? "registered" : "unavailable (fallback)"));
+      }
+    } catch (e) {
+      await this._diag("related papers FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.42.0 三个新列：标题译文 / 阅读进度 / 星标评级（各自带 pref 开关，结构与 citation 列一致）
+    if (Prefs.get("titleTranslationColumnEnabled", true)) {
+      try {
+        await TitleTranslationColumn.register(id);
+        await this._diag("title translation column registered");
+      } catch (e) {
+        await this._diag("title translation column FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+    if (Prefs.get("progressColumnEnabled", true)) {
+      try {
+        await ProgressColumn.register(id);
+        await this._diag("progress column registered");
+      } catch (e) {
+        await this._diag("progress column FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+    // 0.46.0 行内显示：进度画在标题列背景（主显示形态，独立于上面的列开关——
+    // 用户关掉列也要能看）。挂不上（主窗口未就绪）时 registerRow 内部会等 uiReady 重试
+    try {
+      const rowOk = await ProgressColumn.registerRow();
+      await this._diag("progress row overlay " + (rowOk ? "patched" : "deferred"));
+    } catch (e) {
+      await this._diag("progress row overlay FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    if (Prefs.get("ratingColumnEnabled", true)) {
+      try {
+        await RatingColumn.register(id);
+        await this._diag("rating column registered");
+      } catch (e) {
+        await this._diag("rating column FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+
+    // 阅读状态自动化（0.11.0）：新条目打「未读」+ 打开 PDF「未读→在读」
+    try {
+      ReadingState.register();
+      await this._diag("reading state notifier registered");
+    } catch (e) {
+      await this._diag("reading state FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 菜单
+    try {
+      Menus.init(rootURI);
+      await this._diag("menus registered");
+    } catch (e) {
+      await this._diag("menus FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.70.0 左下角标签入口：在原生 #tag-menu 末尾追加「Papilot 标签工具 ▸」。
+    // 注意这不是完整功能——批量选择/删除/改名/合并都在独立窗口 tag-manager.xhtml，
+    // 因为 tag selector 是 react-virtualized 虚拟列表，插复选框会被重渲染抹掉。
+    try {
+      TagMenu.install();
+      await this._diag("tag menu hook registered");
+    } catch (e) {
+      await this._diag("tag menu FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.16.0 主题系统：界面主题（CSS 变量换肤）+ PDF 阅读主题（叠色/反色）
+    try {
+      UiTheme.register();
+      await this._diag("ui theme registered");
+    } catch (e) {
+      await this._diag("ui theme FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    try {
+      PdfTheme.register();
+      await this._diag("pdf theme registered");
+    } catch (e) {
+      await this._diag("pdf theme FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    // 0.25.1 主题按钮：界面主题走主窗口左上角，PDF 阅读主题走阅读器官方 renderToolbar 扩展位
+    try {
+      ThemeToggle.register(id);
+      await this._diag("theme toggle registered");
+    } catch (e) {
+      await this._diag("theme toggle FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    // 0.38.0 顶部快捷按钮：条目工具栏一键菜单（须在 menus.js 加载后注册，标签走 I18n）
+    try {
+      ToolbarQuick.register();
+      await this._diag("toolbar quick registered");
+    } catch (e) {
+      await this._diag("toolbar quick FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    // 0.34.0 PDF 原位对照翻译：阅读器工具栏按钮（同一个 renderToolbar 扩展位）
+    try {
+      PdfInline.register(id);
+      await this._diag("pdf inline translate registered");
+    } catch (e) {
+      await this._diag("pdf inline translate FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 阅读器划词浮窗
+    try {
+      ReaderPopup.register(id);
+      await this._diag("reader popup registered");
+    } catch (e) {
+      await this._diag("reader popup FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.42.0 快捷键中央注册表：必须在 ChatFloat.register 之前 init
+    // （悬浮窗的 Ctrl+Shift+K / 阅读器 Ctrl+Enter 已改经注册表生效）
+    try {
+      Hotkeys.init();
+      await this._diag("hotkeys registry ready");
+    } catch (e) {
+      await this._diag("hotkeys FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.31.0 AI 问答悬浮窗：主窗口快捷键 + 阅读器工具栏按钮/Ctrl+Enter + 分屏窗口
+    try {
+      ChatFloat.register(id);
+      await this._diag("chat float registered");
+    } catch (e) {
+      await this._diag("chat float FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 规则打标：新条目自动应用的 Notifier（菜单部分已由 Menus 注入）
+    try {
+      RuleTag.register();
+      await this._diag("rule tag notifier registered");
+    } catch (e) {
+      await this._diag("rule tag FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.23.0 自动化引擎 + 入库自动精读：各自注册 item/tab Notifier
+    // （两者内部都有「是否开启」的 pref 闸门，未开启时事件进来直接返回）
+    try {
+      Automation.register();
+      await this._diag("automation notifier registered");
+    } catch (e) {
+      await this._diag("automation FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    // 0.42.0 自动化规则快捷键：规则里配了 hotkey 的注册进中央快捷键表
+    try {
+      this._registerAutomationHotkeys();
+    } catch (e) {
+      await this._diag("automation hotkeys FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    try {
+      AutoRead.register();
+      await this._diag("auto read notifier registered");
+    } catch (e) {
+      await this._diag("auto read FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.23.0 阅读行为统计：心跳采集（每 60s 结算一次「阅读器处于焦点」的时长）
+    try {
+      ReadingStats.start();
+      await this._diag("reading stats heartbeat started");
+    } catch (e) {
+      await this._diag("reading stats FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.46.0 阅读进度 2.0：位置采集心跳（60s 捕获焦点阅读器当前页）+ 标注位置 Notifier
+    // （列的渲染已由上面 ProgressColumn 注册；本模块只管数据采集，与列开关解耦）
+    try {
+      ReadingProgress.register();
+      await this._diag("reading progress collector registered");
+    } catch (e) {
+      await this._diag("reading progress FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.24.0 MCP 对外供给：注册 Zotero 本地端点 /papilot/mcp
+    // （端点常驻注册，是否真正对外服务由 pref mcpEnabled 决定，未启用时返回 503）
+    try {
+      const ok = MCP.register();
+      await this._diag("mcp endpoint register=" + ok + " enabled=" + MCP.enabled());
+    } catch (e) {
+      await this._diag("mcp FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.43.0 原生 Find Full Text 集成：Unpaywall/Sci-Hub 链注册进 Zotero 内置 resolvers
+    // （自带 fulltextResolverEnabled 总开关，精确增删、不碰用户其他 resolver 配置）
+    // 先做一次性镜像链迁移：默认镜像 3 → 7（用户自定义过的不动），再按新值注册
+    try {
+      const upgraded = SciHub.upgradeMirrorsPref();
+      if (upgraded) await this._diag("scihub mirrors upgraded to 7-mirror chain");
+    } catch (e) {
+      await this._diag("scihub mirrors upgrade FAILED: " + (e && (e.stack || e.message) || e));
+    }
+    try {
+      FullTextResolver.register();
+      await this._diag("fulltext resolvers registered");
+    } catch (e) {
+      await this._diag("fulltext resolvers FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.24.0 文献发现：每日刷新检查（开关默认关，未开启时定时器空转不做网络请求）
+    try {
+      Discovery.start();
+      await this._diag("discovery daily timer started (enabled=" + Prefs.get("discoveryEnabled", false) + ")");
+    } catch (e) {
+      await this._diag("discovery FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.53.0 检索订阅定时器（无订阅时空转，只做一次数组长度判断）
+    try {
+      SearchSubs.start();
+      await this._diag("search subs started (" + SearchSubs.list().length + " 条订阅)");
+      // 0.57.0 订阅核心不变量自检（纯本地、不写 pref、不联网）：真机排查先看这一行
+      try {
+        await this._diag("search subs selfTest " + SearchSubs.selfTest());
+      } catch (e2) {
+        await this._diag("search subs selfTest FAILED: " + (e2 && (e2.stack || e2.message) || e2));
+      }
+    } catch (e) {
+      await this._diag("search subs FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.49.0 定时任务：研究晨报 / 阅读周报 / 库体检（时间 pref 全空时空转，只做 3 次字符串比较）
+    try {
+      Scheduler.start();
+      await this._diag("scheduler started (digest=" + (Prefs.get("scheduleDailyDigest", "") || "off") +
+        ", weekly=" + (Prefs.get("scheduleWeeklyReport", "") || "off") +
+        ", health=" + (Prefs.get("scheduleLibHealth", "") || "off") + ")");
+    } catch (e) {
+      await this._diag("scheduler FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.25.0 arXiv 核心离线自检（不联网）。
+    // 生成物是「代码生成代码」的产物：一旦转换出错（例如 module.exports = 被换成 return =），
+    // loadSubScript 只会静默降级、界面看不出异常。把解析/构建/去重的本地断言结果写进
+    // boot 日志，实机排查第一眼就能下结论（`arxiv core self-test: ok ...`）。
+    try {
+      await this._diag("arxiv core self-test: " + ArxivFetch.selfTest());
+    } catch (e) {
+      await this._diag("arxiv core self-test FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 监听配置变更：分区开关 / 数据路径 即时生效（非关键功能，失败不得拖死 startup）
+    try {
+      this._watchPrefs();
+      await this._diag("pref watchers registered");
+    } catch (e) {
+      await this._diag("pref watchers FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 中文转换器自动更新（0.14.5）：静默、12h 间隔，修复知网抓取/PDF 下载最常见根因
+    try {
+      CNTranslators.scheduleAuto();
+    } catch (e) {
+      await this._diag("cn translators auto-update schedule FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.21.0：多篇 PDF 对比自检（pref compareSelfTest，默认关）。
+    // 内嵌预览失败是静默的（面板空白），自检把结果写进 boot 日志以便定位。
+    if (Prefs.get("compareSelfTest", false)) {
+      try {
+        this.pdfCompare.selfTest().catch((e) => this._diag("compare self-test rejected: " + (e && e.message)));
+        await this._diag("compare self-test scheduled");
+      } catch (e) {
+        await this._diag("compare self-test FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+
+    // 0.43.1：知网链路启动自检（pref cnkiBootSelfTest，默认关）——权限三态/登录/搜索探测
+    // 全写 boot 日志。发版前的真机功能级验证不依赖 GUI：装包设 pref → 重启 → 读日志。
+    if (Prefs.get("cnkiBootSelfTest", false)) {
+      try {
+        setTimeout(() => {
+          CNAuth.bootSelfTest().catch((e) => this._diag("cnki selftest rejected: " + (e && e.message)));
+        }, 25000); // 25s 后跑：不与启动期网络任务抢带宽
+        await this._diag("cnki selftest scheduled");
+      } catch (e) {
+        await this._diag("cnki selftest schedule FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+
+    // 0.34.0：PDF 原位对照翻译自检（pref pdfInlineSelfTest，默认关）。
+    // 段落抽取错误 / 译文卡错位这类问题只有真实 PDF 才暴露（迷你 DOM 覆盖不到 pdf.js
+    // 的真实 textLayer），自检把「每页段落数 / 卡片数 / 首卡落点」写进 boot 日志。
+    if (Prefs.get("pdfInlineSelfTest", false)) {
+      try {
+        this.pdfInline.selfTest()
+          .then((r) => this._diag("pdfInline selfTest: " + JSON.stringify(r)))
+          .catch((e) => this._diag("pdfInline selfTest rejected: " + (e && e.message)));
+        await this._diag("pdfInline self-test scheduled");
+      } catch (e) {
+        await this._diag("pdfInline self-test FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+
+    // 0.37.1：更新提示（Zotero 的第三方插件更新是静默的，补一次可见反馈；
+    // pref updateNoticeEnabled 默认开，检查失败静默，同一版本只提示一次）
+    try {
+      UpdateNotice.register(id, version, (r) => {
+        try { this._diag("update notice: " + JSON.stringify(r || {})); } catch (e) { /* ignore */ }
+      });
+      await this._diag("update notice scheduled (v" + version + ")");
+    } catch (e) {
+      await this._diag("update notice FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.36.0：左原右译双栏自检（pref pdfDualSelfTest，默认关）——真实 PDF 上验
+    // 「两个 pane 是否挂上、右栏段落/卡片数、同步滚动位置」，结果写进 boot 日志
+    if (Prefs.get("pdfDualSelfTest", false)) {
+      try {
+        // pdfDualSelfTestAtt：指定附件 itemID（排障直指用户报告的那篇；0 = 扫库取第一个）
+        const att = Number(Prefs.get("pdfDualSelfTestAtt", 0)) || 0;
+        this.pdfDual.selfTest(undefined, att)
+          .then((r) => this._diag("pdfDual selfTest: " + JSON.stringify(r)))
+          .catch((e) => this._diag("pdfDual selfTest rejected: " + (e && e.message)));
+        await this._diag("pdfDual self-test scheduled" + (att ? " (att=" + att + ")" : ""));
+      } catch (e) {
+        await this._diag("pdfDual self-test FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+
+    // 0.67.0「仅托管」模式：值只存在账号密文里，运行时水合到内存（不落盘）。
+    // Account 恢复会话是异步的 → 首次未就绪时订阅一次会话变化再试，避免"开机第一次同步失败"。
+    try {
+      const CV = this.credVault;
+      if (CV && typeof CV.hasHostedOnly === "function" && CV.hasHostedOnly()) {
+        const runHydrate = (tag) => CV.hydrateHostedOnly(true)
+          .then((n) => { if (n) this._diag("vault hydrate (" + tag + "): " + n + " field(s)"); })
+          .catch((e) => this._diag("vault hydrate FAILED (" + tag + "): " + (e && e.message)));
+        runHydrate("boot");
+        try {
+          if (Account && typeof Account.onSessionChanged === "function") {
+            const off = Account.onSessionChanged(() => {
+              try { if (off) off(); } catch (e) { /* ignore */ }
+              runHydrate("session");
+            });
+          }
+        } catch (e) { /* 订阅失败就只靠 syncNow 前的兜底水合 */ }
+      }
+    } catch (e) { /* 水合失败只影响「仅托管」项，其它功能照常 */ }
+
+    // 0.67.0 凭据中心真机自检（pref vaultSelfTest，默认关）。
+    // 只有真机能验证：窗口能否打开、以及**锁定时 DOM 里是否真的没有明文**。
+    // 结论写进 boot 日志（leaked 必须为 0）。
+    if (Prefs.get("vaultSelfTest", false)) {
+      try {
+        const w = this.openVault();
+        await new Promise((r) => setTimeout(r, 3000));
+        const doc = w && w.document;
+        const box = doc && doc.getElementById("v-main");
+        const txt = box ? box.textContent : "(no main)";
+        const secrets = (this.credVault ? this.credVault.items() : [])
+          .filter((i) => i.secret && i.configured).map((i) => i.value).filter(Boolean);
+        const leaked = secrets.filter((v) => txt.indexOf(v) >= 0).length;
+        const planEl = doc && doc.getElementById("v-plan");
+        const lockEl = doc && doc.getElementById("v-lock");
+        await this._diag("vault selftest: opened=" + !!w
+          + " plan=" + (planEl && planEl.textContent) + " lock=" + (lockEl && lockEl.textContent)
+          + " mainLen=" + txt.length + " mainKids=" + (box ? box.children.length : -1)
+          + " masked=" + (txt.indexOf("••••") >= 0)
+          + " secrets=" + secrets.length + " leaked=" + leaked);
+        try { w.close(); } catch (e2) { /* ignore */ }
+      } catch (e) {
+        await this._diag("vault selftest FAILED: " + (e && (e.stack || e.message) || e));
+      }
+    }
+
+    this._initialized = true;
+    Zotero.debug(`Papilot ${version} initialized`);
+  },
+
+  /** 工作台独立窗口（0.9.0）：单实例——已开则聚焦，未开则新开 */
+  openWorkbench() {
+    try {
+      const wm = Services.wm;
+      const en = wm.getEnumerator("papilot:workbench");
+      if (en.hasMoreElements()) {
+        const win = en.getNext();
+        try { win.focus(); } catch (e) { /* ignore */ }
+        return win;
+      }
+      const win = Zotero.getMainWindow();
+      if (!win) return null;
+      // ⚠️ 新开 chrome 窗口里没有 Zotero 全局，主窗口的 Zotero 也不能经
+      // opener.Zotero 跨窗口读到；且窗口作用域里 importESModule 加载
+      // Services.sys.mjs 会失败（0.9.0 实证）——Zotero/Services 一律经
+      // window.arguments 传对象引用，这是唯一可靠通道。
+      return win.openDialog(
+        "chrome://papilot/content/workbench.xhtml",
+        "papilot-workbench",
+        "chrome,extracz,resizable,dialog=no,centerscreen",
+        { Zotero, Services }
+      );
+    } catch (e) {
+      Zotero.logError(new Error("Papilot: 打开工作台失败"));
+      Zotero.logError(e);
+      return null;
+    }
+  },
+
+  /** 功能中心独立窗口（0.12.0）：单实例，传参通道与 openWorkbench 相同 */
+  openHub() {
+    try {
+      const wm = Services.wm;
+      const en = wm.getEnumerator("papilot:hub");
+      if (en.hasMoreElements()) {
+        const win = en.getNext();
+        try { win.focus(); } catch (e) { /* ignore */ }
+        return win;
+      }
+      const win = Zotero.getMainWindow();
+      if (!win) return null;
+      return win.openDialog(
+        "chrome://papilot/content/hub.xhtml",
+        "papilot-hub",
+        "chrome,extracz,resizable,dialog=no,centerscreen",
+        { Zotero, Services }
+      );
+    } catch (e) {
+      Zotero.logError(new Error("Papilot: 打开功能中心失败"));
+      Zotero.logError(e);
+      return null;
+    }
+  },
+
+  /** 0.48.x 打开技能商店窗口（单例：已开则聚焦） */
+  openSkillStore() {
+    try {
+      const en = Services.wm.getEnumerator("papilot:skillstore");
+      if (en.hasMoreElements()) { const w = en.getNext(); w.focus(); return w; }
+    } catch (e) { /* ignore */ }
+    const win = Zotero.getMainWindow();
+    if (!win) return null;
+    try {
+      return win.openDialog(
+        "chrome://papilot/content/skill-store.xhtml",
+        "papilot-skill-store",
+        "chrome,centerscreen,resizable,dialog=no",
+        { Zotero, Services }
+      );
+    } catch (e) {
+      try { Zotero.logError(e); } catch (e2) { /* ignore */ }
+      return null;
+    }
+  },
+
+  /**
+   * 0.73.0 打开组件商店窗口（单例）。
+   * 商店本身不依赖任何已装组件：目录可离线回落到包内快照，
+   * 因此 moduleStore 不可用也照样能开窗（页面会显示核心未就绪空态）。
+   */
+  openModuleStore() {
+    try {
+      const en = Services.wm.getEnumerator("papilot:modstore");
+      if (en.hasMoreElements()) { const w = en.getNext(); w.focus(); return w; }
+    } catch (e) { /* ignore */ }
+    const win = Zotero.getMainWindow();
+    if (!win) return null;
+    try {
+      return win.openDialog(
+        "chrome://papilot/content/module-store.xhtml",
+        "papilot-module-store",
+        "chrome,centerscreen,resizable,dialog=no",
+        { Zotero, Services }
+      );
+    } catch (e) {
+      try { Zotero.logError(e); } catch (e2) { /* ignore */ }
+      return null;
+    }
+  },
+
+  /**
+   * 0.68.3 首启向导的「该不该自动弹」判定与触发（由 init 在会话恢复后调用）。
+   *
+   * 三个输入都必须**取真值**，否则判定形同虚设：
+   *   · wizardDone —— pref，写过 done/skipped 就永不再自动弹；
+   *   · loggedIn   —— 必须等 Account.restore() 落定（调用方已保证）；
+   *   · configured —— 是否已有非官方通道（自建接口的老用户同样不该被当新用户）。
+   * 判定本身在 WizardGate.decide（纯函数，test/wizard.test.js 有矩阵用例）。
+   */
+  async _maybeFirstRunWizard() {
+    try {
+      let configured = false;
+      try {
+        const list = (Channels && Channels.list) ? Channels.list() : [];
+        configured = (list || []).some((c) => c && !c.official);
+      } catch (e) { configured = false; }
+      const gate = (typeof WizardGate !== "undefined" && WizardGate)
+        ? WizardGate.decide({
+          wizardDone: Prefs.get("wizardDone", ""),
+          loggedIn: !!(Account && Account.isLoggedIn && Account.isLoggedIn()),
+          configured: configured,
+        })
+        // 兜底：WizardGate 缺失时退回旧行为（有值不弹），绝不因判定缺失而反复弹
+        : { show: !Prefs.get("wizardDone", ""), mark: "", reason: "fallback" };
+
+      if (gate.mark) {
+        // 补记一笔，否则每次启动都要重新判；某个时刻会话恢复慢一拍就会又弹出来
+        try { Prefs.set("wizardDone", gate.mark); } catch (e) { /* 写不进去也不能崩 */ }
+      }
+      if (!gate.show) {
+        await this._diag("first-run wizard skipped (" + gate.reason + ")");
+        return;
+      }
+      const w = Zotero.getMainWindow();
+      const later = (fn, ms) => (w && w.setTimeout ? w.setTimeout(fn, ms) : setTimeout(fn, ms));
+      later(() => {
+        try { this.openWizard(); } catch (e) { /* 弹不出来也不能挡启动 */ }
+      }, 3000);
+      await this._diag("first-run wizard scheduled");
+    } catch (e) {
+      await this._diag("first-run wizard FAILED: " + (e && e.message || e));
+    }
+  },
+
+  /** 0.68.0 打开「首次使用向导」（单例：已开则聚焦）。
+   *  入口：首启自动弹一次 / 工具菜单 / 设置面板「推荐配置」旁的手动入口。 */
+  openWizard() {
+    try {
+      const en = Services.wm.getEnumerator("papilot:wizard");
+      if (en.hasMoreElements()) { const w = en.getNext(); w.focus(); return w; }
+    } catch (e) { /* ignore */ }
+    const win = Zotero.getMainWindow();
+    if (!win) return null;
+    try {
+      return win.openDialog(
+        "chrome://papilot/content/wizard.xhtml",
+        "papilot-wizard",
+        "chrome,centerscreen,resizable,dialog=no",
+        { Zotero, Services }
+      );
+    } catch (e) {
+      try { Zotero.logError(e); } catch (e2) { /* ignore */ }
+      return null;
+    }
+  },
+
+  /** 0.66.0 打开「个人中心 · 账号与密钥」窗口（单例：已开则聚焦） */
+  openVault() {
+    try {
+      const en = Services.wm.getEnumerator("papilot:vault");
+      if (en.hasMoreElements()) { const w = en.getNext(); w.focus(); return w; }
+    } catch (e) { /* ignore */ }
+    const win = Zotero.getMainWindow();
+    if (!win) return null;
+    try {
+      return win.openDialog(
+        "chrome://papilot/content/vault.xhtml",
+        "papilot-vault",
+        "chrome,centerscreen,resizable,dialog=no",
+        { Zotero, Services }
+      );
+    } catch (e) {
+      try { Zotero.logError(e); } catch (e2) { /* ignore */ }
+      return null;
+    }
+  },
+
+  _watchPrefs() {
+    // 沙箱作用域里的普通对象挂不上 nsIPrefBranch 弱引用 observer
+    // （FF140 实证：addObserver(..., weak=true) 直接抛错拖死 startup）。
+    // 改用 Zotero.Prefs.registerObserver——Zotero 自己在主作用域持有单个
+    // nsIObserver 再分发，按「完整 pref key」注册（无前缀监听，逐 key 注册）。
+    this._prefObserverSymbols = ["rankDataPath", "rankColumnEnabled", "easyScholarEnabled", "easyScholarKey", "citationColumnEnabled", "rankDataSets", "rankMaxBadges", "rankBadgeStyle", "uiTheme", "uiThemeCustom", "uiWallpaper", "uiWallpaperPath", "uiWallpaperUrl", "uiWallpaperOpacity", "pdfTheme", "pdfThemeCustomColor", "pdfThemeCustomOpacity", "themeButtonEnabled", "themeMainButtonEnabled", "quickBarButtonEnabled", "titleTranslationColumnEnabled", "progressColumnEnabled", "progressRowEnabled", "progressRowStyle", "progressBarStyle", "progressBasis", "progressColorByState", "ratingColumnEnabled", "fulltextResolverEnabled", "scihubEnabled", "scinetEnabled", "scihubMirrors", "scinetUrl", "unpaywallEmail", "automationRules"].map((key) =>
+      Zotero.Prefs.registerObserver(Prefs.PREFIX + key, () => {
+        this._onPrefChanged(key).catch((e) => {
+          try { Zotero.logError(e); } catch (_) { /* ignore */ }
+        });
+      }, true)
+    );
+  },
+
+  async _onPrefChanged(key) {
+    if (key === "rankDataPath") {
+      if (RankColumn._registered) await RankColumn.reload();
+    } else if (key === "rankColumnEnabled") {
+      const enabled = Prefs.get("rankColumnEnabled", true);
+      if (enabled && !RankColumn._registered) {
+        await RankColumn.load(this.rootURI);
+        await RankColumn.register(this.id);
+      } else if (!enabled && RankColumn._registered) {
+        RankColumn.unregister();
+      }
+    } else if (key === "citationColumnEnabled") {
+      const enabled = Prefs.get("citationColumnEnabled", true);
+      if (enabled && !CitationColumn._registered) {
+        await CitationColumn.register(this.id);
+      } else if (!enabled && CitationColumn._registered) {
+        CitationColumn.unregister();
+      }
+    } else if (key === "easyScholarEnabled" || key === "easyScholarKey") {
+      // 开关或密钥变化：清查找缓存并立即重绘（ES 结果按内容缓存，无需清空）
+      try { RankColumn._lookupCache.clear(); } catch (e) { /* ignore */ }
+      // 1.9.0：清空自备 Key 后应回落到「账号托管」那把（有就取回，没有就保持空）
+      if (key === "easyScholarKey") { try { RankColumn.refreshHostedKey().catch(() => {}); } catch (e) { /* ignore */ } }
+      try { Zotero.ItemTreeManager.refreshColumns(); } catch (e) { /* ignore */ }
+      try { Zotero.Notifier.trigger("redraw", "item", []); } catch (e) { /* ignore */ }
+    } else if (key === "rankDataSets" || key === "rankMaxBadges" || key === "rankBadgeStyle") {
+      // 分区显示配置变化：清条目级缓存并立即重绘（0.18.0）；
+      // 0.18.1 补 redraw 兜底——不同 Zotero 版本对行数据缓存处理不一致，
+      // 只 refreshColumns() 在部分版本上不会重取 dataProvider，表现为
+      // 「设置改了没反应」。
+      // 审查 P1-4：renderCell 的 prefs 预算缓存在此统一刷新（每行不再重读 pref）
+      try { RankColumn._refreshRenderPrefs(); } catch (e) { /* ignore */ }
+      try { RankColumn._lookupCache.clear(); } catch (e) { /* ignore */ }
+      try { Zotero.ItemTreeManager.refreshColumns(); } catch (e) { /* ignore */ }
+      try { Zotero.Notifier.trigger("redraw", "item", []); } catch (e) { /* ignore */ }
+    } else if (key === "uiTheme" || key === "uiThemeCustom" || key === "uiWallpaper" || key === "uiWallpaperPath" || key === "uiWallpaperUrl" || key === "uiWallpaperOpacity") {
+      // 主题/壁纸即时生效：设置面板/菜单/工具栏按钮任何一处改动，全部窗口立即换肤
+      try { UiTheme.apply(); } catch (e) { /* ignore */ }
+      // 两处主题按钮的提示文字同步（界面主题名变了）
+      try { ThemeToggle.refresh(); } catch (e) { /* ignore */ }
+      // 审查 P1-5：主题切换会改 --color-accent/--accent-green，进度列色值缓存失效
+      try { if (typeof ProgressColumn !== "undefined" && ProgressColumn) ProgressColumn._invalidateVarCache(); } catch (e) { /* ignore */ }
+    } else if (key === "pdfTheme" || key === "pdfThemeCustomColor" || key === "pdfThemeCustomOpacity") {
+      // PDF 阅读主题即时生效：重刷全部已打开 reader（不用重开文档）
+      try { PdfTheme.refresh(); } catch (e) { /* ignore */ }
+      try { ThemeToggle.refresh(); } catch (e) { /* ignore */ }
+    } else if (key === "themeButtonEnabled" || key === "themeMainButtonEnabled") {
+      // 按钮总开关 / 主窗口按钮独立门控（0.42.0）
+      try { ThemeToggle.syncEnabled(); } catch (e) { /* ignore */ }
+    } else if (key === "quickBarButtonEnabled") {
+      // 顶部快捷按钮开关（直达项变化无需观察：菜单在 popupshowing 时重填）
+      try { ToolbarQuick.syncEnabled(); } catch (e) { /* ignore */ }
+    } else if (key === "titleTranslationColumnEnabled") {
+      const enabled = Prefs.get("titleTranslationColumnEnabled", true);
+      if (enabled && !TitleTranslationColumn._registered) {
+        await TitleTranslationColumn.register(this.id);
+      } else if (!enabled && TitleTranslationColumn._registered) {
+        TitleTranslationColumn.unregister();
+      }
+    } else if (key === "progressColumnEnabled") {
+      const enabled = Prefs.get("progressColumnEnabled", true);
+      if (enabled && !ProgressColumn._registered) {
+        await ProgressColumn.register(this.id);
+      } else if (!enabled && ProgressColumn._registered) {
+        ProgressColumn.unregister();
+      }
+    } else if (key === "progressBarStyle" || key === "progressBasis" || key === "progressColorByState") {
+      // 0.46.0 进度样式/口径/着色变化：立即重绘（同 rank 列的修复口径——
+      // 只 refreshColumns() 在部分版本不会重取 dataProvider，须补 redraw）
+      // 审查 P1-5：着色开关变化时同步失效进度列色值缓存（防御性，成本为零）
+      try { if (typeof ProgressColumn !== "undefined" && ProgressColumn) ProgressColumn._invalidateVarCache(); } catch (e) { /* ignore */ }
+      try { Zotero.ItemTreeManager.refreshColumns(); } catch (e) { /* ignore */ }
+      try { Zotero.Notifier.trigger("redraw", "item", []); } catch (e) { /* ignore */ }
+    } else if (key === "progressRowEnabled") {
+      // 行内显示开关：挂/停装饰层并重建行（wrapper 被别家包过时仅停装饰，安全）
+      if (Prefs.get("progressRowEnabled", true)) {
+        await ProgressColumn.registerRow();
+      } else {
+        ProgressColumn.unregisterRow();
+      }
+      ProgressColumn.refreshRow();
+    } else if (key === "progressRowStyle") {
+      ProgressColumn.refreshRow();
+    } else if (key === "ratingColumnEnabled") {
+      const enabled = Prefs.get("ratingColumnEnabled", true);
+      if (enabled && !RatingColumn._registered) {
+        await RatingColumn.register(this.id);
+      } else if (!enabled && RatingColumn._registered) {
+        RatingColumn.unregister();
+      }
+    } else if (key === "fulltextResolverEnabled" || key === "scihubEnabled" || key === "scinetEnabled"
+      || key === "scihubMirrors" || key === "scinetUrl" || key === "unpaywallEmail") {
+      // resolver 配置项变化：重算注入清单（幂等，无变化不写 pref）
+      try { FullTextResolver.refresh(); } catch (e) { /* ignore */ }
+    } else if (key === "automationRules") {
+      // 规则增删/改快捷键：重挂自动化热键（register 同 id 覆盖；删除的规则热键
+      // 残留到下次启动，触发时 runRule 对未知 id 安全返回）
+      try { this._registerAutomationHotkeys(); } catch (e) { /* ignore */ }
+    }
+  },
+
+  /** 0.42.0：把自动化规则里配了 hotkey 的注册进中央快捷键表（幂等，同 id 覆盖） */
+  _registerAutomationHotkeys() {
+    if (typeof Automation === "undefined" || typeof Hotkeys === "undefined") return;
+    if (!Automation.getHotkeyRules || !Hotkeys.register) return;
+    for (const r of Automation.getHotkeyRules()) {
+      try {
+        Hotkeys.register({
+          id: "automation-" + r.id,
+          label: "自动化：" + r.name,
+          combo: r.hotkey,
+          scope: "main",
+          handler: () => {
+            try { Automation.runRule(r.id); } catch (e) { Zotero.logError(e); }
+          },
+        });
+      } catch (e) { Zotero.logError(e); }
+    }
+  },
+
+  destroy() {
+    if (this._prefObserverSymbols) {
+      for (const sym of this._prefObserverSymbols) {
+        try { Zotero.Prefs.unregisterObserver(sym); } catch (e) { /* ignore */ }
+      }
+      this._prefObserverSymbols = null;
+    }
+    try { Menus.destroy(); } catch (e) { Zotero.logError(e); }
+    // 0.70.0 先摘掉 #tag-menu 上的注入项与捕获监听，再谈其它
+    try { TagMenu.unregister(); } catch (e) { Zotero.logError(e); }
+    try { ThemeToggle.unregister(); } catch (e) { Zotero.logError(e); }
+    try { ToolbarQuick.unregister(); } catch (e) { Zotero.logError(e); }
+    // 0.54.1（审查 P1-8）：双栏窗口持有 _win/_rightReader 强引用，且右栏 reader 是预览实例、
+    // 收不到 tab close，必须在这里显式收口（PdfInline.unregister 内部再兜底清全部 state）。
+    try { PdfDual.dispose(); } catch (e) { Zotero.logError(e); }
+    try { PdfInline.unregister(); } catch (e) { Zotero.logError(e); }
+    try { UpdateNotice.unregister(); } catch (e) { Zotero.logError(e); }
+    try { UiTheme.unregister(); } catch (e) { Zotero.logError(e); }
+    try { PdfTheme.unregister(); } catch (e) { Zotero.logError(e); }
+    try { RuleTag.unregister(); } catch (e) { Zotero.logError(e); }
+    try { Automation.unregister(); } catch (e) { Zotero.logError(e); }
+    try { AutoRead.unregister(); } catch (e) { Zotero.logError(e); }
+    try { ReadingStats.stop(); } catch (e) { Zotero.logError(e); }
+    try { ReadingProgress.unregister(); } catch (e) { Zotero.logError(e); }
+    try { ProgressColumn.unregisterRow(); } catch (e) { Zotero.logError(e); }
+    try { Discovery.stop(); } catch (e) { Zotero.logError(e); }
+    try { Scheduler.stop(); } catch (e) { Zotero.logError(e); }
+    try { SearchSubs.stop(); } catch (e) { Zotero.logError(e); }
+    // 0.56.0 云同步：清自动同步定时器与订阅者（否则关机前还可能触发一轮网络请求）
+    try { CloudSync.destroy(); } catch (e) { Zotero.logError(e); }
+    try { MCP.unregister(); } catch (e) { Zotero.logError(e); }
+    try { ReadingState.unregister(); } catch (e) { Zotero.logError(e); }
+    try { ReaderPopup.unregister(); } catch (e) { Zotero.logError(e); }
+    try { ChatFloat.unregister(); } catch (e) { Zotero.logError(e); }
+    // 0.54.1（审查 P2-13）：卸载时把 1.5s 防抖中的会话写盘刷掉，否则最后一轮问答丢存档
+    try { ChatSessions.dispose(); } catch (e) { Zotero.logError(e); }
+    try { AIChatPane.unregister(); } catch (e) { Zotero.logError(e); }
+    try { GlancePane.unregister(); } catch (e) { Zotero.logError(e); }
+    try { TranslatePane.unregister(); } catch (e) { Zotero.logError(e); }
+    try { RefPane.unregister(); } catch (e) { Zotero.logError(e); }
+    try { RelatedPapers.unregister(); } catch (e) { Zotero.logError(e); }
+    try { CitationContext.unregister(); } catch (e) { Zotero.logError(e); }
+    try { RankColumn.unregister(); } catch (e) { Zotero.logError(e); }
+    try { CitationColumn.unregister(); } catch (e) { Zotero.logError(e); }
+    try { TitleTranslationColumn.unregister(); } catch (e) { Zotero.logError(e); }
+    try { ProgressColumn.unregister(); } catch (e) { Zotero.logError(e); }
+    try { RatingColumn.unregister(); } catch (e) { Zotero.logError(e); }
+    try { Hotkeys.shutdown(); } catch (e) { Zotero.logError(e); }
+    try { FullTextResolver.unregister(); } catch (e) { Zotero.logError(e); }
+    // unregister 接收的是 register 返回的 paneID（不是 pluginID；Z10 关机时也会自动注销）
+    try {
+      if (this._paneID) Zotero.PreferencePanes.unregister(this._paneID);
+    } catch (e) { Zotero.logError(e); }
+    this._paneID = null;
+    this._initialized = false;
+  },
+};

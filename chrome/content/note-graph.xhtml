@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot · 笔记关系图谱"
+        windowtype="papilot:notegraph"
+        width="1180" height="760"
+        persist="screenX screenY width height">
+  <script src="chrome://papilot/content/note-graph-ui.js"></script>
+  <vbox flex="1" style="padding:10px;">
+    <hbox style="gap:12px;align-items:center;flex-wrap:wrap;">
+      <html:button id="pp-ng-build" style="font-weight:bold;">生成 / 刷新图谱</html:button>
+      <html:label style="font-size:12.5px;"><html:input type="checkbox" id="pp-ng-collection"/> 只统计当前选中分类</html:label>
+      <html:label style="font-size:12.5px;"><html:input type="checkbox" id="pp-ng-linked" checked="checked"/> 只显示有连接的节点</html:label>
+      <html:span id="pp-ng-status" style="color:var(--fill-secondary,#666);font-size:12.5px;"></html:span>
+      <spacer flex="1"/>
+      <html:button id="pp-ng-close">关闭</html:button>
+    </hbox>
+    <vbox id="pp-ng-canvas" flex="1"
+      style="overflow:auto;margin-top:10px;border:1px solid var(--fill-tertiary,#999);background:var(--material-surface,#fff);color:var(--fill-primary,#222);"/>
+    <html:div id="pp-ng-legend" style="margin-top:6px;font-size:11.5px;color:var(--fill-secondary,#666);"></html:div>
+  </vbox>
+</window>

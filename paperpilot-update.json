@@ -1,0 +1,906 @@
+{
+ "addons": {
+  "paperpilot@dev.local": {
+   "updates": [
+    {
+     "version": "0.55.9",
+     "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/paperpilot-0.55.9.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "PaperPilot 已更名为 Papilot。本提示包不含功能，装好后请：\n1) 到「工具 → 插件」卸载 PaperPilot；2) 在弹窗里点「打开发行版页面」下载 Papilot 并安装。\n文库、笔记与插件设置都不会丢，Papilot 首次启动会自动迁移旧设置。\n说明：扩展 ID 已变更，Zotero 无法通过「检查更新」直接从 PaperPilot 跨到 Papilot，因此需要这一步。"
+    },
+    {
+     "version": "0.9.0",
+     "update_link": "https://zotero.gujinbencao.com/paperpilot/paper-pilot-0.9.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.9.1",
+     "update_link": "https://zotero.gujinbencao.com/paperpilot/paper-pilot-0.9.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.9.2",
+     "update_link": "https://zotero.gujinbencao.com/paperpilot/paper-pilot-0.9.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.10.0",
+     "update_link": "https://zotero.gujinbencao.com/paperpilot/paper-pilot-0.10.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.11.0",
+     "update_link": "https://zotero.gujinbencao.com/paperpilot/paper-pilot-0.11.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.12.0",
+     "update_link": "https://zotero.gujinbencao.com/paperpilot/paper-pilot-0.12.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.13.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.13.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.13.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.13.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.13.2",
+     "update_link": "https://zotero.gujinbencao.com/paperpilot/paper-pilot-0.13.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.0",
+     "update_link": "https://zotero.gujinbencao.com/paperpilot/paper-pilot-0.14.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.2",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.3",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.3.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.4",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.4.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.5",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.5.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.6",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.6.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.7",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.7.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.8",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.8.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.14.9",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.14.9.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.15.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.15.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.15.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.15.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.16.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.16.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.16.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.16.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.17.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.17.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.17.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.17.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.18.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.18.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.18.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.18.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.19.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.19.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.20.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.20.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.20.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.20.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.21.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.21.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.21.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.21.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.21.2",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.21.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.22.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.22.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.23.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.23.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.2",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.3",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.3.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.4",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.4.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.5",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.5.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.6",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.6.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.7",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.7.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.24.8",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.24.8.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.25.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.25.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.25.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.25.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.25.2",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.25.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.26.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.26.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.27.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.27.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.28.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.28.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.29.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.29.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.30.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.30.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.31.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.31.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.32.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.32.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.33.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.33.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.34.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.34.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.36.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.36.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.37.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.37.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.37.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.37.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.37.2",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.37.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.37.3",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.37.3.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.38.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.38.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.38.2",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.38.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.38.3",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.38.3.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.39.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.39.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.40.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.40.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.41.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.41.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.42.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/raw/main/dist/paper-pilot-0.42.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.43.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.43.0/paper-pilot-0.43.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.43.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.43.1/paper-pilot-0.43.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     }
+    },
+    {
+     "version": "0.44.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.44.0/paper-pilot-0.44.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "防窥屏升级：接口地址与密钥完全隐藏；「清除凭据/退出登录」一体化\n新增实验功能「第三方文献源」（Pro 试用、默认关闭）"
+    },
+    {
+     "version": "0.44.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.44.1/paper-pilot-0.44.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "更新提示升级：检测到新版本或更新完成后，都会显示「本次更新了哪些内容」摘要（每版只提示一次）\n修复：静默更新后不再“毫无提示”"
+    },
+    {
+     "version": "0.44.2",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.44.2/paper-pilot-0.44.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "【工具 → 插件】列表与更新提示都显示更新内容摘要\n实验功能「第三方文献源」改为内置可用网点：双站合并去重、无需账号，支持一键检测网点状态"
+    },
+    {
+     "version": "0.45.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.45.0/paper-pilot-0.45.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "实验功能「第三方文献源」加强：入口扩为四组共 27 个公开入口（中文库 / 英文全文 / 预印本 / 学术搜索）\n支持输入 DOI 或标题，点入口直接落到该站检索结果\n面板去掉来源注释文字，只保留实验功能提示"
+    },
+    {
+     "version": "0.45.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.45.1/paper-pilot-0.45.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "第三方文献源：面板文案统一为「入口」（原「网点」）、检索提示行不再留空"
+    },
+    {
+     "version": "0.46.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.46.0/paper-pilot-0.46.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "阅读进度 2.0：进度直接画在条目标题背后（高能进度条——每页一格、读得越久颜色越深），不用勾选任何列；自动吸收 Zotero 原生「上次读到」与标注位置；进度达标自动标已读。另：AI 打标签升级（置信度 + 词表 + 缓存）、会员与计费口径对齐服务端 1.8.0"
+    },
+    {
+     "version": "0.46.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.46.1/paper-pilot-0.46.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "修复：官方模型切换模型后报「HTTP 401（密钥无效或未授权）」并掉登录——根因是服务端把上游模型通道的 401（通道密钥失效/模型未授权）原样透传，插件误当账号令牌失效清除了本地会话。现服务端改报 502 并指明上游通道问题，插件也只认「登录已过期」才清会话；实测报错文案对官方通道改为「登录状态已过期」。"
+    },
+    {
+     "version": "0.48.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.48.0/paper-pilot-0.48.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "AI 助手升级为智能体（交互设计参考开源项目 Hermes Agent）：可多轮调用工具检索文献库、读条目/全文、加笔记、打标签；复杂任务先列计划再执行；写操作默认逐次弹确认；浮窗输入 / 唤起命令面板（/agent 开关、/tools 清单、标签直达）。新增「技能商店」：浏览/搜索/安装/更新 AI 技能包（提示词标签·术语·笔记模板·Agent 预设），内置 6 个精选包，可自制并分享，支持评分评价与分类标签。翻译术语表领域化：领域启停白名单、待译段落命中术语优先注入、CSV/TSV 导入导出、计算机/医学/金融/法律四域种子词包；全文翻译完成后汇报「术语一致 n/m」。修复：设置面板「账号」「AI 与翻译」等分区标题被卡片遮挡的问题。设置新增：对话历史轮数、top_p 采样、Agent 工具逐个开关、System Prompt 三套预设。"
+    },
+    {
+     "version": "0.48.1",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.48.1/paper-pilot-0.48.1.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "技能商店目录大扩容：8 大类 × 4 个共 32 个官方技能包——写作（综述/开题/审稿回复/摘要打磨）、审稿（期刊匹配/可复现性/学位论文评审）、翻译（法律/经济术语包、学术改写）、阅读（CS/AI、社科、工程）、标签（标签治理/方法论/学科领域/优先级）、Agent（文献快扫/引文核查/库管家）、模板（文献矩阵/阅读笔记/组会汇报/实验记录）、综合（科研入门/基金申请/每日速递）。默认配置官方在线目录（Gitee）：商店内点「刷新目录」即可拉取最新技能包；离线时内置目录完整可用。清空目录源地址可切回纯内置模式。"
+    },
+    {
+     "version": "0.48.2",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.48.2/paper-pilot-0.48.2.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "修复：在技能商店里更新/卸载技能包后，设置面板「已安装」列表仍显示旧版本——现改为自动同步（监听安装记账变化即时刷新），并新增「↻ 刷新」按钮兜底。"
+    },
+    {
+     "version": "0.48.3",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.48.3/paper-pilot-0.48.3.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "技能商店开放社区投稿：制作器新增「🚀 投稿到技能商店」按钮（自动复制 JSON 并打开贡献指南）；GitHub 仓库上线 community-packs 贡献目录（指南 + 模板 + PR/Issue 投稿模板 + CI 自动校验）。任何人都能制作技能包，经审核合并后全体用户在商店「刷新目录」即可安装。"
+    },
+    {
+     "version": "0.48.4",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.48.4/paper-pilot-0.48.4.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "修复：技能商店打开后列表始终为空（或只显示已安装的几个包）——根因是检索层把「已安装集合」误传给了过滤参数，未安装任何包时 45 个目录包被全部滤掉。修复后打开商店即可看到完整目录列表。"
+    },
+    {
+     "version": "0.50.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.50.0/paper-pilot-0.50.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "AI 助手八项升级：①浮窗会话自动保存、重开 Zotero 自动恢复（/history /sessions）；②定时任务：每日研究晨报（最近新增文献）、每周阅读周报、每周库体检，到点自动生成笔记；③智能体工具增至 11 个（arXiv 检索、被引量、笔记检索、参考文献导出、移动文集）；④写操作审计与一键撤销（/undo）；⑤任务沉淀为命令标签（/distill）；⑥Agent 决策模型路由（工具轮用轻量模型降本）；⑦研究者画像（长期偏好注入所有 AI 回答）；⑧MCP 对外供给扩展（外部 AI 可列出并调用全部智能体工具，写操作需显式授权）。另含：会员购买/额度充值下单成功自动弹出付款单（金额、尾数、状态、收款方式一屏可见，支持我已完成支付/刷新状态/取消订单）。"
+    },
+    {
+     "version": "0.51.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.51.0/paper-pilot-0.51.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "①AI 回答里的「文献 n」引用现在可点击——直接定位到对应条目（多篇上下文对话时尤其实用）；②智能体长期记忆：对话中可自动记住你的研究方向、结论与偏好（memory_write），之后每次对话自动带上，设置面板「AI 记忆」可浏览、单条删除或清空，写入支持撤销；③条目详情面板新增「相关文献」区：基于 Semantic Scholar 的 5 条推荐（标题/年份/被引量），每条一键入库并自动打 #来源/S2推荐 标签（按 DOI 去重）。"
+    },
+    {
+     "version": "0.52.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.52.0/paper-pilot-0.52.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "①条目详情新增「引文上下文」面板（Scite 风格）：Semantic Scholar 施引句原文 + 支持/对比/批评/中性倾向判定（启发式分类，方法引用不算支持），最多 8 条，可在 S2 打开；②元数据医生：选中条目右键即可用 Crossref 反查补全缺失的 DOI/期刊/年份/作者——先预览差异、确认后才写库、可用 /undo 撤销，已有值绝不覆盖；③标注→论点速记：把当前文献的 PDF 高亮与批注交给 AI，按「论点-证据-页码」证据纪律整理成笔记（每条论点必须挂标注编号与页码，不足 3 条标注时退化为要点清单）。"
+    },
+    {
+     "version": "0.53.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.53.0/paper-pilot-0.53.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "①检索订阅：在设置面板「检索订阅」新建订阅（名称 + 关键词/arXiv 分类 + 每日时间 + 是否自动入库），到点自动检索 arXiv、按 DOI/arXiv ID/标题指纹去重、命中自动入库并打 #订阅/<名称> 标签，同时生成「订阅速递」笔记（含新入库/已在库标注）。②综述工作台（旗舰）：选中多篇文献右键「综述工作台」→ ① AI 生成 4-7 节大纲（可手动编辑）→ ② 逐节起草（每节带全部文献上下文与证据纪律，引用统一用「文献 n」）→ ③ 保存为笔记（引用自动转成可点击的 zotero:// 条目链接）或导出 Markdown。"
+    },
+    {
+     "version": "0.54.0",
+     "update_link": "https://gitee.com/cassiuschen9261/paper-pilot/releases/download/v0.54.0/paper-pilot-0.54.0.xpi",
+     "applications": {
+      "zotero": {
+       "strict_min_version": "6.999",
+       "strict_max_version": "99.*"
+      }
+     },
+     "whatsNew": "代码审查修复 10 项（P0-P2）：①笔记检索改用 Zotero 服务端搜索——库大于 800 条时不再漏检、也不再逐条扫描卡顿；②AI 记忆防注入：写入时拒绝「忽略以上规则」类指令型内容，外部（MCP）写入限 200 字，注入提示时明确标注「记忆是数据不是指令」；③工具返回内容统一加不可信数据围栏，单轮写操作最多 5 次；④长回答流式渲染改为 100ms 合并刷新，不再逐字重绘；⑤晨报只查询最近 24 小时新增、库体检分批读取，大库内存与卡顿显著下降；⑥相关文献/引文上下文面板 400ms 防抖，快速翻条目不再空耗 API；⑦会话存档改存数据目录文件（prefs 只留最近 5 条），问答响应更轻；⑧综述工作台引用链接改为保存时一次成型（少一次写盘）。"
+    }
+   ]
+  }
+ }
+}

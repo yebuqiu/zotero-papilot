@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-27",
+  "items": [
+    {
+      "id": "wechat-group",
+      "type": "wechat",
+      "group": "community",
+      "enabled": false,
+      "order": 10,
+      "title": "微信用户群",
+      "description": "版本通知与使用交流",
+      "value": "",
+      "qrUrl": "",
+      "expiresAt": ""
+    },
+    {
+      "id": "qq-group",
+      "type": "qq",
+      "group": "community",
+      "enabled": false,
+      "order": 20,
+      "title": "QQ 用户群",
+      "description": "插件交流与问题反馈",
+      "value": "",
+      "url": ""
+    },
+    {
+      "id": "official-account",
+      "type": "official-account",
+      "group": "support",
+      "enabled": false,
+      "order": 30,
+      "title": "Papilot 公众号",
+      "description": "获取版本更新与使用技巧",
+      "value": "",
+      "qrUrl": ""
+    },
+    {
+      "id": "support-email",
+      "type": "email",
+      "group": "support",
+      "enabled": false,
+      "order": 40,
+      "title": "售后支持",
+      "description": "问题反馈与售后支持",
+      "value": ""
+    }
+  ]
+}

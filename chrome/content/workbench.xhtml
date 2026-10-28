@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<!-- Papilot 工作台 2.0（0.13.0）：独立桌面窗口
+     设计体系借鉴 ai4paper：CSS 变量双主题 / 圆角气泡 + hover 消息操作 /
+     模式分段切换 / 工具 chips。windowtype 单实例；persist 记忆位置大小 -->
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot 工作台"
+        windowtype="papilot:workbench"
+        width="920" height="680"
+        persist="screenX screenY width height sizemode">
+  <script src="chrome://papilot/content/workbench.js"/>
+  <html:style><![CDATA[
+    /* 统一令牌（唯一词汇表）：本地 :root 声明在文件后部，按层叠仍然生效，引入不改变现有观感。
+       迁移完成后再逐步删掉本地重复的 --pp-* 声明。 */
+    @import url("chrome://papilot/content/ui-tokens.css");
+
+    :root {
+      --pp-bg:#f9fafb; --pp-surface:#ffffff; --pp-soft:#f1f5f9;
+      --pp-border:#e2e8f0; --pp-border2:#eef0f3;
+      --pp-text:#1e293b; --pp-text2:#475569; --pp-muted:#64748b; --pp-subtle:#94a3b8;
+      --pp-accent:#2563eb; --pp-accent-soft:#e8f1ff;
+      --pp-user:#2563eb; --pp-user-text:#ffffff;
+      --pp-ai:#ffffff; --pp-ai-text:#1e293b;
+      --pp-code-bg:#1e1e1e; --pp-code-text:#d4d4d4;
+      --pp-danger:#c0392b;
+    }
+    :root[data-theme="dark"] {
+      --pp-bg:#171a21; --pp-surface:#1f242e; --pp-soft:#262c38;
+      --pp-border:#343c4b; --pp-border2:#2c333f;
+      --pp-text:#e8edf5; --pp-text2:#c3ccd9; --pp-muted:#9aa7b8; --pp-subtle:#6f7d92;
+      --pp-accent:#7aa2ff; --pp-accent-soft:#273352;
+      --pp-user:#4c6ef5; --pp-user-text:#f4f7ff;
+      --pp-ai:#242b37; --pp-ai-text:#e8edf5;
+      --pp-code-bg:#0d1117; --pp-code-text:#c9d1d9;
+      --pp-danger:#ff7a6b;
+    }
+    * { box-sizing:border-box; }
+    #pp-wb-root {
+      display:flex; flex-direction:column; width:100%; height:100%;
+      background:var(--pp-bg); color:var(--pp-text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+      font-size:13px;
+    }
+    /* 头部 */
+    .pp-wb-header { background:var(--pp-surface); border-bottom:1px solid var(--pp-border); padding:10px 14px 8px; }
+    .pp-wb-title { font-weight:700; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pp-wb-meta { font-size:11px; color:var(--pp-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:1px; }
+    .pp-wb-header-row { display:flex; align-items:center; gap:8px; }
+    .pp-wb-spacer { flex:1; }
+    .pp-wb-mini-btn {
+      background:var(--pp-soft); border:1px solid var(--pp-border); border-radius:6px;
+      font-size:11px; padding:3px 9px; cursor:pointer; color:var(--pp-text2); white-space:nowrap;
+    }
+    .pp-wb-mini-btn:hover { background:var(--pp-accent-soft); }
+    .pp-wb-profile { font-size:11px; max-width:170px; background:var(--pp-soft); color:var(--pp-text2);
+      border:1px solid var(--pp-border); border-radius:6px; padding:2px 4px; }
+    /* 模式分段 */
+    .pp-wb-modes { display:inline-flex; background:var(--pp-soft); border:1px solid var(--pp-border); border-radius:8px; padding:2px; gap:2px; margin-top:8px; }
+    .pp-wb-mode { border:none; background:transparent; color:var(--pp-muted); font-size:12px; padding:4px 12px; border-radius:6px; cursor:pointer; }
+    .pp-wb-mode.active { background:var(--pp-surface); color:var(--pp-accent); font-weight:600; border:1px solid var(--pp-border); margin:-1px; }
+    /* 工具 chips */
+    .pp-wb-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .pp-wb-chip {
+      background:var(--pp-soft); border:1px solid var(--pp-border); border-radius:999px;
+      font-size:11px; padding:3px 12px; cursor:pointer; color:var(--pp-text2); white-space:nowrap;
+    }
+    .pp-wb-chip:hover { background:var(--pp-accent-soft); color:var(--pp-accent); border-color:var(--pp-accent); }
+    .pp-wb-chip:disabled { opacity:.5; cursor:default; }
+    /* 消息区 */
+    #pp-wb-msgs { flex:1; overflow-y:auto; padding:14px 14px 18px; scrollbar-width:thin; }
+    .pp-wb-msg-row { display:flex; margin:8px 0; }
+    .pp-wb-msg-row.user { justify-content:flex-end; }
+    .pp-wb-msg-row.ai { justify-content:flex-start; }
+    .pp-wb-msg-row.sys { justify-content:center; }
+    .pp-wb-bubble {
+      max-width:82%; padding:9px 13px; border-radius:14px; font-size:13px; line-height:1.65;
+      word-wrap:break-word; word-break:break-word; position:relative;
+    }
+    .pp-wb-msg-row.user .pp-wb-bubble { background:var(--pp-user); color:var(--pp-user-text); border-bottom-right-radius:4px; white-space:pre-wrap; }
+    .pp-wb-msg-row.ai .pp-wb-bubble { background:var(--pp-ai); color:var(--pp-ai-text); border:1px solid var(--pp-border); border-bottom-left-radius:4px; }
+    .pp-wb-msg-row.sys .pp-wb-bubble { background:transparent; color:var(--pp-muted); font-size:12px; padding:3px 10px; max-width:92%; text-align:center; }
+    .pp-wb-msg-row.sys .pp-wb-bubble.err { color:var(--pp-danger); }
+    .pp-wb-bubble p { margin:4px 0; }
+    .pp-wb-bubble ul,.pp-wb-bubble ol { margin:4px 0; padding-left:20px; }
+    .pp-wb-bubble code { background:rgba(148,163,184,.18); padding:1px 5px; border-radius:4px; font-size:12px; }
+    .pp-wb-bubble pre { background:var(--pp-code-bg); color:var(--pp-code-text); padding:8px 12px; border-radius:8px; margin:6px 0; overflow-x:auto; font-size:12px; }
+    .pp-wb-bubble blockquote { border-left:3px solid var(--pp-accent); margin:4px 0; padding:4px 10px; background:var(--pp-soft); border-radius:0 6px 6px 0; color:var(--pp-text2); }
+    .pp-wb-bubble table { border-collapse:collapse; margin:6px 0; font-size:12px; }
+    .pp-wb-bubble th,.pp-wb-bubble td { border:1px solid var(--pp-border); padding:4px 8px; }
+    /* 消息操作：hover 显示 */
+    .pp-wb-msg-actions { display:flex; gap:4px; margin-top:6px; opacity:0; transition:opacity .15s; }
+    .pp-wb-bubble:hover .pp-wb-msg-actions { opacity:1; }
+    .pp-wb-act-btn { background:rgba(148,163,184,.14); border:none; border-radius:5px; font-size:11px; padding:2px 8px; cursor:pointer; color:var(--pp-muted); }
+    .pp-wb-act-btn:hover { background:rgba(148,163,184,.3); color:var(--pp-text); }
+    /* 流式光标 */
+    .pp-wb-cursor { display:inline-block; width:7px; height:14px; background:var(--pp-accent); vertical-align:-2px; animation:ppwb-blink 1s steps(2) infinite; }
+    @keyframes ppwb-blink { 50% { opacity:0; } }
+    /* 输入区 */
+    .pp-wb-inputbar { background:var(--pp-surface); border-top:1px solid var(--pp-border); padding:10px 14px; }
+    /* 拖入条目的上下文 chips */
+    .pp-wb-ctx-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+    .pp-wb-ctx-chip {
+      display:inline-flex; align-items:center; gap:4px; max-width:240px;
+      padding:2px 4px 2px 10px; font-size:11px; border-radius:999px;
+      border:1px solid var(--pp-accent); background:var(--pp-accent-soft); color:var(--pp-text);
+    }
+    .pp-wb-ctx-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pp-wb-ctx-chip button { border:none; background:transparent; color:var(--pp-muted); cursor:pointer; font-size:11px; padding:0 4px; line-height:1; }
+    .pp-wb-ctx-chip button:hover { color:var(--pp-danger); }
+    /* ui-kit 需要、本窗口原先没定义的令牌：沿用本窗口配色（--pp-bg / --pp-soft / --pp-subtle） */
+    :root {
+      --pp-field: var(--pp-bg);
+      --pp-surface-3: var(--pp-soft);
+      --pp-faint: var(--pp-subtle);
+      --pp-border-strong: #cfd8e3;
+    }
+    :root[data-theme="dark"] { --pp-border-strong: #414b5a; }
+
+    .pp-wb-inputrow { display:flex; gap:8px; align-items:flex-end; }
+    /* 输入/发送/停止的底、描边、圆角、禁用态全部来自 ui-kit；这里只留布局与「停止」的语义配色 */
+    #pp-wb-input { flex:1; resize:none; }
+    #pp-wb-send { flex:none; font-weight:600; }
+    #pp-wb-stop { color:var(--pp-danger); background:var(--pp-soft); border-color:var(--pp-border); }
+    .pp-wb-footer { display:flex; gap:6px; align-items:center; margin-top:8px; }
+    #pp-wb-status { color:var(--pp-muted); font-size:11px; flex:1; }
+    /* 弹出列表（Prompt 库 / 会话） */
+    .pp-wb-pop {
+      position:absolute; bottom:100%; right:0; margin-bottom:6px; min-width:220px; max-width:320px; max-height:300px; overflow-y:auto;
+      background:var(--pp-surface); border:1px solid var(--pp-border); border-radius:10px; padding:4px; z-index:10;
+    }
+    .pp-wb-pop-item { padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; color:var(--pp-text2); display:flex; gap:6px; align-items:center; }
+    .pp-wb-pop-item:hover { background:var(--pp-accent-soft); color:var(--pp-accent); }
+    .pp-wb-pop-item.active { background:var(--pp-accent-soft); font-weight:600; }
+    .pp-wb-pop-sep { border-top:1px solid var(--pp-border2); margin:4px 2px; }
+    .pp-wb-pop-anchor { position:relative; }
+    .pp-wb-trash { margin-left:auto; color:var(--pp-subtle); }
+    .pp-wb-trash:hover { color:var(--pp-danger); }
+  ]]></html:style>
+
+  <vbox flex="1" id="pp-wb-root">
+    <!-- 头部：条目上下文 + 配置 -->
+    <html:div class="pp-wb-header">
+      <html:div class="pp-wb-header-row">
+        <html:span style="font-size:17px;">📄</html:span>
+        <html:div style="flex:1;min-width:0;">
+          <html:div class="pp-wb-title" id="pp-wb-item-title">（未选择条目）</html:div>
+          <html:div class="pp-wb-meta" id="pp-wb-item-meta"></html:div>
+        </html:div>
+        <html:select class="pp-wb-profile" id="pp-wb-profile" title="AI 模型通道（切换活动通道）"></html:select>
+        <html:button class="pp-wb-mini-btn" id="pp-wb-theme" title="切换主题">🌙</html:button>
+      </html:div>
+      <html:div class="pp-wb-header-row" style="margin-top:6px;">
+        <html:input type="checkbox" id="pp-wb-follow" checked="true"/>
+        <html:label for="pp-wb-follow" style="font-size:11px;color:var(--pp-muted);">跟随主窗口选中</html:label>
+        <html:button class="pp-wb-mini-btn" id="pp-wb-pick">选择条目…</html:button>
+        <html:span class="pp-wb-spacer"></html:span>
+        <html:span id="pp-wb-model" style="font-size:11px;color:var(--pp-subtle);"></html:span>
+      </html:div>
+      <!-- 模式分段 -->
+      <html:div class="pp-wb-header-row">
+        <html:div class="pp-wb-modes" id="pp-wb-modes">
+          <html:button class="pp-wb-mode active" data-mode="paper">📄 本文对话</html:button>
+          <html:button class="pp-wb-mode" data-mode="deep">🔬 深度研读</html:button>
+          <html:button class="pp-wb-mode" data-mode="free">🌐 全库对话</html:button>
+        </html:div>
+      </html:div>
+      <!-- 工具 chips -->
+      <html:div class="pp-wb-chips" id="pp-wb-chips">
+        <html:button class="pp-wb-chip pp-wb-act" data-act="summary">总结</html:button>
+        <html:button class="pp-wb-chip pp-wb-act" data-act="translate">翻译标题摘要</html:button>
+        <html:button class="pp-wb-chip pp-wb-act" data-act="interpret">深度解读</html:button>
+        <html:button class="pp-wb-chip" id="pp-wb-chip-bilingual">全文对照翻译</html:button>
+        <html:button class="pp-wb-chip" id="pp-wb-chip-mindmap">思维导图</html:button>
+        <html:span class="pp-wb-pop-anchor">
+          <html:button class="pp-wb-chip" id="pp-wb-chip-prompts">Prompt 技能库 ▾</html:button>
+        </html:span>
+      </html:div>
+    </html:div>
+
+    <!-- 消息区 -->
+    <html:div id="pp-wb-msgs"></html:div>
+
+    <!-- 输入区 -->
+    <html:div class="pp-wb-inputbar">
+      <!-- 拖入条目的上下文 chips（空时隐藏） -->
+      <html:div class="pp-wb-ctx-chips" id="pp-wb-ctx-chips" style="display:none;"></html:div>
+      <html:div class="pp-wb-inputrow">
+        <html:textarea id="pp-wb-input" class="pp-textarea" rows="3"
+          placeholder="提问…（Ctrl+Enter 发送，Esc 停止生成）"></html:textarea>
+        <html:button id="pp-wb-send" class="pp-btn pp-btn-primary pp-btn-lg">发送</html:button>
+        <html:button id="pp-wb-stop" class="pp-btn pp-btn-lg" hidden="true">■ 停止</html:button>
+      </html:div>
+      <html:div class="pp-wb-footer">
+        <html:span class="pp-wb-pop-anchor">
+          <html:button class="pp-wb-mini-btn" id="pp-wb-sessions">会话 ▾</html:button>
+        </html:span>
+        <html:button class="pp-wb-mini-btn" id="pp-wb-save">存为笔记</html:button>
+        <html:button class="pp-wb-mini-btn" id="pp-wb-export">导出 .md</html:button>
+        <html:button class="pp-wb-mini-btn" id="pp-wb-clear">清空对话</html:button>
+        <html:span id="pp-wb-status"></html:span>
+      </html:div>
+    </html:div>
+  </vbox>
+</window>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot · 文献发现（arXiv 每日推荐）"
+        windowtype="papilot:discovery"
+        width="1080" height="760">
+  <script src="chrome://papilot/content/discovery-ui.js"></script>
+  <vbox flex="1" style="padding:12px;">
+    <hbox style="gap:12px;align-items:center;flex-wrap:wrap;">
+      <html:span id="pp-dc-status" style="color:var(--fill-secondary,#666);font-size:12.5px;"></html:span>
+      <html:span style="color:var(--fill-tertiary,#999);">｜</html:span>
+      <html:label style="font-size:12.5px;">arXiv 分类
+        <html:input id="pp-dc-cats" placeholder="cs.CL, cs.AI, cs.LG"
+          style="width:240px;margin-left:4px;"/></html:label>
+      <html:button id="pp-dc-run" style="font-weight:bold;">刷新推荐</html:button>
+      <html:label style="font-size:12.5px;"><html:input type="checkbox" id="pp-dc-daily"/> 每日自动刷新</html:label>
+      <spacer flex="1"/>
+      <html:button id="pp-dc-subs" title="把当前分类/兴趣词保存为检索订阅（每天自动跑）">存为订阅</html:button>
+      <html:button id="pp-dc-note">存为笔记</html:button>
+      <html:button id="pp-dc-close">关闭</html:button>
+    </hbox>
+
+    <html:div id="pp-dc-hint" style="font-size:12px;color:var(--fill-secondary,#666);margin-top:6px;">
+      推荐来自 arXiv 官方 API：先用库里已有文献建「兴趣画像」（标题/标签/期刊/摘要加权词元），
+      再把最近提交的新论文按画像打分排序，已在你库里的会自动排除。未填分类时改用画像词元检索。
+    </html:div>
+
+    <vbox id="pp-dc-list" flex="1"
+      style="overflow:auto;border:1px solid var(--fill-tertiary,#999);padding:8px;margin-top:8px;background:var(--material-surface,#fff);color:var(--fill-primary,#222);font-size:13px;"/>
+
+    <hbox style="gap:10px;align-items:center;margin-top:8px;">
+      <html:span id="pp-dc-sum" style="color:var(--fill-secondary,#666);font-size:12.5px;"></html:span>
+      <spacer flex="1"/>
+      <html:button id="pp-dc-clear-ignored">恢复已忽略的推荐</html:button>
+    </hbox>
+  </vbox>
+</window>

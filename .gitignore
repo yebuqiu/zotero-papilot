@@ -1,0 +1,82 @@
+# 临时与产物
+*.xpi
+Thumbs.db
+.DS_Store
+.workbuddy/
+.agent-runs/
+__pycache__/
+
+# 账号后台（2026-10-28 起整体移出公开仓库，历史亦已重写）
+# 原因：会员/定价/优惠券/支付/管理台属商业实现，随私有备份维护，不入公开 git
+# 本地仍保留完整代码与运行时数据（server/data/ 含用户、令牌、通道密钥、日志）
+server/
+
+# 项目内置运行时（二进制与令牌不入库，随移动硬盘携带；
+# 保留 runtime/README.md 与 cloudflared 运行器脚本 —— 与「心血管科药物」项目同规）
+runtime/node/
+runtime/cloudflared/cloudflared.exe
+runtime/cloudflared/token.txt*
+runtime/cloudflared/.brain-config.json
+runtime/cloudflared/logs/
+
+# 本地安装的 npm 依赖（仅 E2E 用 playwright-core，不入库）
+node_modules/
+
+# 发行版安装包（Gitee raw 可直链下载；其余构建产物仍不入库）
+!dist/
+!dist/*.xpi
+# 瘦身试打包（--modular 验证用；未过 init 门控前不随发行版入库）
+dist/*-slim.xpi
+# 0.73.0 模块包：每次构建由 scripts/build-module.py 从仓库源文件重新生成，
+# 属于发布到模块仓库的制品，不入主仓（避免 1.3MB 二进制重复堆积）
+dist/modules/
+
+# 发布预备树（publish-modules.py --stage 的产物，含 9 份模块源码副本）
+build/
+# 0.68.2 WPS 加载项独立发布物（GPL-3.0 组件，不随 xpi 分发；卡片按需下载）
+
+# 一次性修补脚本（其它会话的临时产物，禁止入库）
+scripts/_tmp_*.py
+scripts/_tmp_*.js
+
+# 构建时从 wps-cite/ 同步的 WPS 加载项载荷（单一真源在 wps-cite/，不入库）
+chrome/content/tools/wps-cite.bundle.json
+
+# 站点截图与诊断脚本的临时产物（不入库：体积大且含一次性脚本）
+outputs/
+
+# 运行日志
+@AutomationLog.txt
+
+# 服务端测试（2026-10-28 随账号后台一同移出公开仓库）
+# 这些套件 require server/account-server.js 与 server/lib/*，且断言里含 API 端点、
+# 字段与业务规则，与后台同属商业实现。文件保留在本机，门禁按存在性条件执行。
+test/account-profile.test.js
+test/admin-e2e.test.js
+test/admin-inline.test.js
+test/admin-origin.test.js
+test/ai-tier.test.js
+test/audit.test.js
+test/balance-hold-audit.test.js
+test/balance-hold.test.js
+test/balance-ledger.test.js
+test/balance.test.js
+test/change-password.test.js
+test/community-server.test.js
+test/coupon.test.js
+test/gateway-abort.test.js
+test/gateway-routing.test.js
+test/membership.test.js
+test/metering.test.js
+test/pay-atomic.test.js
+test/pay.test.js
+test/price.test.js
+test/pricing.test.js
+test/reconcile.test.js
+test/secret-host.test.js
+test/server-ops.test.js
+test/server-scale.test.js
+test/sessions.test.js
+test/store-corrupt.test.js
+test/trust-proxy.test.js
+test/usage.test.js

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<!-- Papilot 多篇 PDF 并排对比（0.21.3）
+     舞台用「绝对定位 + 百分比」摆放面板：切换布局只改 CSS，绝不重挂 <browser>
+     （重新挂载会让内嵌阅读器整只重建、PDF 重新解码）。 -->
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot 多篇 PDF 对比"
+        windowtype="papilot:compare"
+        width="1440" height="920"
+        persist="screenX screenY width height sizemode">
+  <script src="chrome://papilot/content/compare.js"/>
+
+  <vbox flex="1" style="min-height:0;">
+    <!-- 工具栏 -->
+    <hbox id="pp-cmp-toolbar" align="center"
+          style="gap:8px;padding:6px 8px;flex-wrap:wrap;
+                 border-bottom:1px solid var(--material-border,#ccc);
+                 background:var(--material-toolbar,#f6f6f6);">
+      <html:span id="pp-cmp-count"
+                 style="font-size:12px;font-weight:700;color:var(--fill-primary,#222);white-space:nowrap;"></html:span>
+
+      <html:span style="width:1px;height:16px;background:var(--material-border,#ccc);"></html:span>
+
+      <html:span id="pp-cmp-layout-label"
+                 style="font-size:12px;color:var(--fill-secondary,#555);white-space:nowrap;"></html:span>
+      <menulist id="pp-cmp-layout" native="true" style="font-size:12px;">
+        <menupopup>
+          <menuitem value="auto" id="pp-cmp-layout-auto"/>
+          <menuitem value="h" id="pp-cmp-layout-h"/>
+          <menuitem value="v" id="pp-cmp-layout-v"/>
+          <menuitem value="grid" id="pp-cmp-layout-grid"/>
+        </menupopup>
+      </menulist>
+
+      <html:span style="width:1px;height:16px;background:var(--material-border,#ccc);"></html:span>
+
+      <checkbox id="pp-cmp-sync-scroll" style="font-size:12px;"/>
+      <checkbox id="pp-cmp-sync-zoom" style="font-size:12px;"/>
+      <html:button id="pp-cmp-align" style="font-size:12px;padding:1px 9px;"></html:button>
+
+      <html:span style="width:1px;height:16px;background:var(--material-border,#ccc);"></html:span>
+
+      <html:button id="pp-cmp-zoom-out" style="font-size:12px;padding:1px 9px;"></html:button>
+      <html:button id="pp-cmp-zoom-fit" style="font-size:12px;padding:1px 9px;"></html:button>
+      <html:button id="pp-cmp-zoom-in" style="font-size:12px;padding:1px 9px;"></html:button>
+      <html:button id="pp-cmp-zoom-100" style="font-size:12px;padding:1px 9px;"></html:button>
+
+      <html:span style="width:1px;height:16px;background:var(--material-border,#ccc);"></html:span>
+
+      <html:button id="pp-cmp-copy-page" style="font-size:12px;padding:1px 9px;"></html:button>
+      <html:button id="pp-cmp-translate-page" style="font-size:12px;padding:1px 9px;"></html:button>
+
+      <html:button id="pp-cmp-add" style="font-size:12px;padding:1px 9px;margin-left:auto;"></html:button>
+
+      <html:span id="pp-cmp-status"
+                 style="font-size:12px;color:var(--fill-secondary,#666);min-width:110px;"></html:span>
+    </hbox>
+
+    <!-- 面板舞台：绝对定位容器 -->
+    <vbox id="pp-cmp-stage" flex="1"
+          style="position:relative;overflow:hidden;min-height:0;
+                 background:var(--material-background,#fafafa);"/>
+
+    <!-- 文本结果条（复制本页文本 / 本页对照翻译的输出区，默认隐藏） -->
+    <vbox id="pp-cmp-result" flex="0 0 auto"
+          style="display:none;max-height:34vh;min-height:92px;
+                 border-top:1px solid var(--material-border,#ccc);
+                 background:var(--material-sidepane,#f6f6f6);">
+      <hbox align="center" style="gap:6px;padding:3px 8px;flex:0 0 auto;">
+        <html:span id="pp-cmp-result-title"
+                   style="flex:1;min-width:0;font-size:12px;font-weight:700;
+                          color:var(--fill-primary,#222);overflow:hidden;
+                          text-overflow:ellipsis;white-space:nowrap;"></html:span>
+        <html:button id="pp-cmp-result-copy" style="font-size:11px;padding:0 8px;"></html:button>
+        <html:button id="pp-cmp-result-close" style="font-size:11px;padding:0 7px;">✕</html:button>
+      </hbox>
+      <html:div id="pp-cmp-result-body"
+                style="flex:1;overflow-y:auto;padding:0 8px 8px;font-size:12.5px;
+                       line-height:1.6;white-space:pre-wrap;word-break:break-word;
+                       color:var(--fill-primary,#222);scrollbar-width:thin;"></html:div>
+    </vbox>
+  </vbox>
+</window>

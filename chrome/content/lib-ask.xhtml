@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot · 库内问答（问自己的文献库）"
+        windowtype="papilot:libask"
+        width="1080" height="720">
+  <script src="chrome://papilot/content/lib-ask.js"></script>
+  <vbox flex="1" style="padding:12px;">
+    <label value="用一句话问整个文献库，例如「我这个库里有没有讲过图神经网络在推荐系统上的应用？」"/>
+    <html:textarea id="pp-lq-query" rows="2"
+      style="width:100%;margin:6px 0;font-size:13px;font-family:inherit;"
+      placeholder="例：我读过的关于大模型幻觉检测的文献都用了什么方法？&#10;例：库里有没有关于长文本摘要的综述？"></html:textarea>
+    <hbox style="gap:14px;align-items:center;flex-wrap:wrap;">
+      <html:label style="font-size:12.5px;"><html:input type="checkbox" id="pp-lq-collection"/> 只搜当前选中分类</html:label>
+      <html:label style="font-size:12.5px;"><html:input type="checkbox" id="pp-lq-pdfonly"/> 只搜有附件的条目</html:label>
+      <html:label style="font-size:12.5px;"><html:input type="checkbox" id="pp-lq-deep" checked="checked"/> 对前若干篇读全文复核</html:label>
+      <html:label style="font-size:12.5px;">候选上限
+        <html:input type="number" id="pp-lq-topn" value="8" min="1" max="20"
+          style="width:56px;margin-left:4px;"/></html:label>
+      <html:button id="pp-lq-run" style="font-weight:bold;">检索</html:button>
+      <html:span id="pp-lq-status" style="color:var(--fill-secondary,#666);font-size:12.5px;"></html:span>
+      <spacer flex="1"/>
+      <html:button id="pp-lq-close">关闭</html:button>
+    </hbox>
+    <hbox flex="1" style="gap:10px;margin-top:10px;min-height:0;">
+      <vbox flex="1" style="min-width:0;">
+        <label value="候选文献（按相关度，点击可在主窗口定位）" style="font-size:12px;color:var(--fill-secondary,#666);"/>
+        <vbox id="pp-lq-cands" flex="1"
+          style="overflow:auto;border:1px solid var(--fill-tertiary,#999);padding:8px;margin-top:4px;background:var(--material-surface,#fff);color:var(--fill-primary,#222);font-size:13px;"/>
+      </vbox>
+      <vbox flex="1" style="min-width:0;">
+        <hbox style="gap:8px;align-items:center;">
+          <html:button id="pp-lq-answer" style="font-weight:bold;">让 AI 依据候选回答</html:button>
+          <html:button id="pp-lq-save">存为笔记</html:button>
+          <html:span id="pp-lq-astatus" style="color:var(--fill-secondary,#666);font-size:12.5px;"></html:span>
+        </hbox>
+        <vbox id="pp-lq-result" flex="1"
+          style="overflow:auto;border:1px solid var(--fill-tertiary,#999);padding:10px;margin-top:4px;background:var(--material-surface,#fff);color:var(--fill-primary,#222);font-size:13px;line-height:1.65;"/>
+      </vbox>
+    </hbox>
+  </vbox>
+</window>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot · MCP 对外供给（让外部 AI 调用你的文献库）"
+        windowtype="papilot:mcp"
+        width="880" height="700">
+  <script src="chrome://papilot/content/mcp-ui.js"></script>
+  <vbox flex="1" style="padding:14px;">
+    <hbox style="gap:10px;align-items:center;flex-wrap:wrap;">
+      <html:span id="pp-mc-badge" style="font-size:12.5px;font-weight:700;"></html:span>
+      <html:span id="pp-mc-status" style="font-size:12.5px;color:var(--fill-secondary,#666);"></html:span>
+      <spacer flex="1"/>
+      <html:button id="pp-mc-toggle" style="font-weight:bold;">启用</html:button>
+      <html:button id="pp-mc-server">启用本地服务</html:button>
+      <html:button id="pp-mc-test">自检</html:button>
+      <html:button id="pp-mc-close">关闭</html:button>
+    </hbox>
+
+    <html:div id="pp-mc-hint" style="font-size:12px;color:var(--fill-secondary,#666);margin-top:8px;line-height:1.6;">
+      把「库检索 / 读全文 / 读批注 / 写笔记 / 分类统计」以 MCP 工具对外开放，供 Claude Desktop、Cursor
+      或自建 Agent 直接调用。<b>服务只监听 127.0.0.1</b>（公网不可达），并且每个请求都要 Bearer 令牌。
+      默认关闭，请确认无误后再启用。<br/>
+      注意：端点由 Zotero 自带的本地 HTTP 服务（连接器服务）承载，若该服务被关闭，端点不会被监听——
+      下方会显示其状态，可点「启用本地服务」恢复。
+    </html:div>
+
+    <html:div id="pp-mc-info" style="font-size:12.5px;margin-top:10px;padding:9px 10px;border:1px solid var(--fill-quinary,#eee);border-radius:8px;background:var(--material-surface,#fff);color:var(--fill-primary,#222);"></html:div>
+
+    <label value="对外开放的工具" style="font-size:12px;color:var(--fill-secondary,#666);margin-top:10px;"/>
+    <vbox id="pp-mc-tools" style="max-height:190px;overflow:auto;border:1px solid var(--fill-quinary,#eee);border-radius:8px;padding:8px;margin-top:4px;background:var(--material-surface,#fff);color:var(--fill-primary,#222);font-size:12.5px;"/>
+
+    <hbox style="gap:8px;align-items:center;margin-top:10px;">
+      <label value="客户端配置（粘贴到 MCP 客户端配置里）" style="font-size:12px;color:var(--fill-secondary,#666);"/>
+      <spacer flex="1"/>
+      <html:button id="pp-mc-copy">复制配置 JSON</html:button>
+      <html:button id="pp-mc-regen">重置令牌</html:button>
+    </hbox>
+    <html:textarea id="pp-mc-config" readonly="readonly" rows="9"
+      style="width:100%;margin-top:4px;font-family:Consolas,Menlo,monospace;font-size:11.5px;"></html:textarea>
+
+    <html:div style="font-size:11.5px;color:var(--fill-tertiary,#999);margin-top:8px;line-height:1.55;">
+      说明：实现了 MCP 的 Streamable HTTP 传输中「单次 application/json 响应」那一支（不用 SSE）；
+      支持 initialize / tools/list / tools/call / ping。若客户端要求 SSE 长连接，本端点暂不支持。
+    </html:div>
+  </vbox>
+</window>

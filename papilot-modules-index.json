@@ -1,0 +1,498 @@
+{
+  "schema": 1,
+  "updated": "2026-10-25T04:11:07Z",
+  "hostMin": "0.78.2",
+  "modules": [
+    {
+      "id": "papilot-bundle-basic",
+      "name": "常用组件合集（首启推荐）",
+      "version": "0.78.2",
+      "description": "一次下载装好最常用的三组能力：PDF 对照与 OCR、AI 问答与面板、界面与效率增强。轻量版首次启动只需下载这一个包，其余组件后续在组件商店按需安装。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 861803,
+      "zipSha256": "9ab6fa53f85fe2283cd318891e23313c34017f20d7aa16134be25f1be4db7952",
+      "fileCount": 0,
+      "tags": [
+        "合集",
+        "推荐"
+      ],
+      "recommended": true,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "常用组件合集：PDF 对照与 OCR、AI 问答与翻译、界面与工具窗口",
+      "globals": [],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-bundle-basic-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-bundle-basic-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/bundles/papilot-bundle-basic/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/bundles/papilot-bundle-basic/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      },
+      "bundle": true,
+      "contains": [
+        "papilot-mod-pdf",
+        "papilot-mod-ai",
+        "papilot-mod-ui"
+      ]
+    },
+    {
+      "id": "papilot-mod-ai",
+      "name": "AI 问答与翻译",
+      "version": "0.78.2",
+      "description": "AI 问答、翻译引擎、Agent 工具、聊天会话与记忆面板。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 202664,
+      "zipSha256": "9464ca6f6b177210c47dd71810f1df915d1763d7a578db401d19144dc60c9268",
+      "fileCount": 28,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "AIProviders",
+        "Account",
+        "Channels",
+        "AIClient",
+        "PdfText",
+        "TranslateLang",
+        "TranslateCrypto",
+        "TranslateGlossary",
+        "TranslateFormula",
+        "TranslateEngines",
+        "TranslateSvc",
+        "GlossaryPacks",
+        "TranslateX",
+        "AIChat",
+        "Prompts",
+        "AgentTools",
+        "CommandTags",
+        "SlashCommands",
+        "AutoTag",
+        "Matrix",
+        "S2Client",
+        "AgentMemory",
+        "AIChatPane",
+        "GlancePane",
+        "TranslatePane",
+        "RefPane",
+        "ChatSessions",
+        "ChatFloat"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-ai-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-ai-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-ai/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-ai/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    },
+    {
+      "id": "papilot-mod-cite",
+      "name": "引用与写作",
+      "version": "0.78.2",
+      "description": "参考文献格式化、引用上下文与溯源、WPS 引用加载项载荷。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 140664,
+      "zipSha256": "58a9427b35a20afbcd6440cdd327ed306bea70a38973d8a6ae8764c6f315ebd4",
+      "fileCount": 7,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "CC_TERMS",
+        "CC_EXACT",
+        "CC_GROUPS",
+        "CC_RANK",
+        "CitationContext",
+        "CitationTrace",
+        "RefFormat",
+        "RefSources",
+        "RefImport",
+        "CiteExport"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-cite-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-cite-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-cite/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-cite/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    },
+    {
+      "id": "papilot-mod-cnki",
+      "name": "知网与中文文献",
+      "version": "0.78.2",
+      "description": "知网等中文站点抓取、中文元数据补全、翻译器与中文 AI 摘要。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 61138,
+      "zipSha256": "d84463de4a49b5314815da2e8fdc541232ed464c2faa1caecfb7d78d4dfadd20",
+      "fileCount": 5,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "CNMeta",
+        "CNTranslators",
+        "CNAI",
+        "CNFetch",
+        "CNVerify",
+        "CNAuth"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-cnki-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-cnki-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-cnki/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-cnki/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    },
+    {
+      "id": "papilot-mod-discovery",
+      "name": "检索订阅与发现",
+      "version": "0.78.2",
+      "description": "期刊检索订阅、文献发现与 arXiv/期刊数据支持。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 110269,
+      "zipSha256": "ad23f9820cec0efa2aad0c7ca6173772dc9f46cda3947b6cd18d258429237f72",
+      "fileCount": 13,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "LibSearch",
+        "JournalCatalog",
+        "SearchSubs",
+        "ArxivErrors",
+        "EXIT",
+        "ArxivDates",
+        "ArxivQuery",
+        "FIELDS",
+        "FIELD_LABELS",
+        "ArxivCategories",
+        "RAW",
+        "ALL",
+        "BY_CODE",
+        "ArxivAtom",
+        "ArxivAnalyze",
+        "STOPWORDS",
+        "SECTION_LABELS",
+        "LABEL_LOOKUP",
+        "LABEL_ALT",
+        "ArxivRateLimiter",
+        "ArxivFetch",
+        "Discovery"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-discovery-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-discovery-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-discovery/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-discovery/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    },
+    {
+      "id": "papilot-mod-meta",
+      "name": "元数据与文库健康",
+      "version": "0.78.2",
+      "description": "元数据规则/清洗/检查、附件管理、查重与文库图谱/统计。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 41530,
+      "zipSha256": "7aad1f99470849894e3081c10718fb86aa0ac822476248e39e19f2be9f76c41b",
+      "fileCount": 9,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "CollectionStats",
+        "FakeCheck",
+        "MetaEnrich",
+        "AttachManager",
+        "MetaLint",
+        "MetaDoctor",
+        "LibGraph",
+        "AttachDoctor",
+        "MetaRules"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-meta-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-meta-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-meta/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-meta/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    },
+    {
+      "id": "papilot-mod-notes",
+      "name": "笔记与知识图谱",
+      "version": "0.78.2",
+      "description": "笔记工具与模板、笔记图谱、思维导图、Anki/Obsidian 导出与批注摘要。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 41196,
+      "zipSha256": "d4ece4a31e20ba2c94f32359d7f5a6a608072426d6e788be6aab731dc98bf4c7",
+      "fileCount": 8,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "Annotations",
+        "AnnotationDigest",
+        "ObsidianExport",
+        "NoteTemplates",
+        "NoteTools",
+        "MindMap",
+        "AnkiExport",
+        "NoteGraph"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-notes-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-notes-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-notes/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-notes/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    },
+    {
+      "id": "papilot-mod-pdf",
+      "name": "PDF 对照与 OCR",
+      "version": "0.78.2",
+      "description": "PDF 内嵌阅读、左右对照翻译、PDF 导出/比对/主题与 OCR 能力。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 453145,
+      "zipSha256": "c61aad94d536d32e38a22ecbf2dc0f9e3a7209669b2d72807b8b44a8063901ef",
+      "fileCount": 10,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "PdfCompare",
+        "OcrService",
+        "PdfTheme",
+        "PdfInline",
+        "PdfDual",
+        "PdfExport"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-pdf-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-pdf-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-pdf/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-pdf/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    },
+    {
+      "id": "papilot-mod-sync",
+      "name": "云同步与凭据",
+      "version": "0.78.2",
+      "description": "坚果云/WebDAV 云同步与本地凭据保险箱。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 66473,
+      "zipSha256": "85a9e14ad5b3fff44a2425de9fd2268e92bb51b8c313e8feccd7e86db1dd3bfa",
+      "fileCount": 5,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "WebDAV",
+        "CloudSync",
+        "CredVault"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-sync-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-sync-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-sync/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-sync/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    },
+    {
+      "id": "papilot-mod-ui",
+      "name": "界面与工具窗口",
+      "version": "0.78.2",
+      "description": "主题与快捷键、技能包商店、标签管理、对比/双语/工作台窗口。",
+      "mode": "scope",
+      "requires": [],
+      "permissions": [],
+      "depends": [],
+      "sizeBytes": 203664,
+      "zipSha256": "514578ae123e416357fc4e5af77f0629463ba3fce19185cdcd70985b03a29ff9",
+      "fileCount": 15,
+      "tags": [],
+      "recommended": false,
+      "pro": false,
+      "hot": false,
+      "whatsNew": "从主包拆出，功能与 0.78.2 一致",
+      "globals": [
+        "SkillPacks",
+        "BilingualTranslate",
+        "TagOps",
+        "TagMenu",
+        "UiTheme",
+        "ThemeToggle",
+        "ColumnViews",
+        "ToolbarQuick",
+        "Hotkeys"
+      ],
+      "download": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/releases/download/v0.78.2/papilot-mod-ui-0.78.2.zip",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/releases/download/v0.78.2/papilot-mod-ui-0.78.2.zip"
+      },
+      "manifest": {
+        "github": "https://github.com/yebuqiu/zotero-papilot/raw/main/modules/papilot-mod-ui/module.json",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/modules/papilot-mod-ui/module.json"
+      },
+      "minHost": "0.78.2",
+      "apiVersion": 1,
+      "author": "Papilot",
+      "license": "Apache-2.0",
+      "origin": "official",
+      "sourceRevision": "fc401e1d0732c9dce86ba7b193350480134cc63d",
+      "repo": {
+        "github": "https://github.com/yebuqiu/zotero-papilot",
+        "gitee": "https://gitee.com/cassiuschen9261/zotero-papilot"
+      }
+    }
+  ],
+  "signature": "NCvFBBgq0/jf4CXDx9FU0g3duSpFxITLI/DHC92yVfAu3E+Cf0kckbIskkElYjSCulfTWhJDJ6vzNkhxC/6YDw==",
+  "signatureAlgo": "ed25519"
+}

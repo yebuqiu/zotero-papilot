@@ -1,0 +1,644 @@
+{
+  "addons": {
+    "papilot@dev.local": {
+      "updates": [
+        {
+          "version": "0.85.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.85.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "被引量列修复：未配 Semantic Scholar API Key 时批量/检索接口会被 429 拦掉（整列停在「…」），现自动降级为逐条查询（约 1 条/秒）并在结果到达后立刻重绘该行；限流改为指数退避 + 重试上限，不再无限空转；标题兜底超时压到 8s 并冷却 6 小时。设置「列 → 被引量」新增在线状态与队列长度显示，悬停可见失败原因。"
+        },
+        {
+          "version": "0.84.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.84.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "网页管理后台完整重构：左侧分组导航、统一设计系统、列表查询与状态筛选、加载/空态/异常恢复、弹窗焦点与危险操作二次确认；Pro 每月赠送额度改为后台可配（0～1000 元，即时生效并同步插件套餐对比）；新增「联系与社群」（后台维护群二维码/公众号/邮箱，插件按需加载）；期刊订阅支持行内取消；修复 WPS 引文弹窗置顶与文献表多行回读；设置面板打开时强制刷新套餐目录。"
+        },
+        {
+          "version": "0.84.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.84.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "网页管理后台完整重构：左侧分组导航 + 右侧内容区，统一配色、字体、间距与表格/表单/弹窗/按钮；主要列表新增查询与状态筛选、加载/空态/异常恢复；补齐表单校验、防重复提交、弹窗焦点/ESC 和危险操作二次确认；Pro 每月赠送额度可独立配置（0～1000 元），即时用于会员发放并同步插件套餐对比。"
+        },
+        {
+          "version": "0.83.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.83.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "修复 WPS 文献表多行文本回读：兼容 WPS 将换行规范化为 CR，保留严格内容校验；并包含 WPS 0.5.2 引文弹窗与集成改进。"
+        },
+        {
+          "version": "0.83.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.83.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "联系与社群改为网页后台维护：新增「联系与社群」管理标签，可增删改、启停、排序与设置二维码过期日，保存后插件刷新即生效，无需改代码或重新打包；BAT 启动器新增「社群维护」直达按钮。"
+        },
+        {
+          "version": "0.82.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.82.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "设置页新增「帮助与社群 → 联系与社群」：微信群、公众号、QQ群、售后邮箱等由统一 JSON 配置驱动，支持在线更新、包内离线备用、二维码按需加载、复制与外部链接；新增「工具 → 联系与社群」直达入口。"
+        },
+        {
+          "version": "0.81.2",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.81.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "期刊订阅支持取消：已订阅的刊在行内直接变「取消订阅」，不用再翻到下方「我的订阅」找同名条目删；取消只停后续抓取，已入库文章与「订阅期刊」分类保留，多刊/多条件订阅只摘这本刊"
+        },
+        {
+          "version": "0.81.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.81.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "修复 WPS 插入引文弹窗置顶：仅识别精确目标弹窗并复核 Zotero 进程和句柄，排除主窗口、未知窗口及其他应用；交互期持续置前且不重复抢焦点。"
+        },
+        {
+          "version": "0.81.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.81.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "WPS 集成升级：统一检查中心与安全重连、页码与 PDF 定位、跨文档总览与批量体检、分章静态文献表、连接修复、投稿方案与样式收藏；窗格等待真实命令结果，保留全部既有能力。"
+        },
+        {
+          "version": "0.80.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.80.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "WPS 引文 P0–P2：脚注尾注、体检与安全恢复、管理面板、投稿迁移工具"
+        },
+        {
+          "version": "0.79.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.79.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "WPS 集成增强：引文选择窗口连续置顶；插入/编辑文献支持选中角标后增删条目；文档首选项长数据分段保存并合并 GB/T、APA、IEEE、Nature 入口；新增正文引文与参考文献双向跳转。"
+        },
+        {
+          "version": "0.79.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.79.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "账号与密钥完整同步：你明确确认后可提取并加密托管全部第三方账号凭据、翻译引擎密钥与完整自定义 AI 通道配置；新设备从账号同步只补空缺不覆盖；新增 OpenAlex/Unpaywall 管理；无后台自动上传；服务端 1.9.5"
+        },
+        {
+          "version": "0.78.3",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.78.3.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "账号与密钥本地管理免费开放：未登录和免费版均可查看、解锁、编辑、清除知网/坚果云等本地凭据；账号托管与换机同步仍需登录；修复设置入口未登录不可见"
+        },
+        {
+          "version": "0.78.2",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.78.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "组件商店升级热修复：主包版本变化时强制刷新组件目录，避免未过期旧缓存阻断组件升级；窗口脚本与热载结果修复并入。"
+        },
+        {
+          "version": "0.78.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.78.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "组件商店热修复：窗口专用脚本仅随包分发、不再误入共享作用域；热加载失败不再误报成功；补齐全组件真实加载矩阵。"
+        },
+        {
+          "version": "0.78.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.78.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "组件商店安全与生命周期修复：验签异常拒绝、官方仓来源约束、旧组件升级隔离、热装引用刷新、broken 修复、完整性复核、目录状态与回滚界面修正；新增组件投稿治理与不可变发布校验。"
+        },
+        {
+          "version": "0.77.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.77.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "账号自助管理：修改邮箱（验密码+旧邮箱通知，不踢会话）、自助注销账号（匿名化留档/余额清零/二次确认）、账号卡刷新合并为全部刷新、会话有效期仅临近到期才提示；服务端 1.9.4"
+        },
+        {
+          "version": "0.76.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.76.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "账号与会员增强：自助修改密码（踢全部设备+审计）、新设备登录邮件提醒、我的订单/开通记录/扣费明细三个折叠区、赠送额度文案改服务端下发（口径不再漂移）、余额不足一键打开模型通道、对比表补仅限基础模型；服务端 1.9.3"
+        },
+        {
+          "version": "0.75.2",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.75.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "本版更新见发行说明（docs/release-notes/0.75.2.md 未提供）"
+        },
+        {
+          "version": "0.75.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.75.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "本版更新见发行说明（docs/release-notes/0.75.1.md 未提供）"
+        },
+        {
+          "version": "0.75.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.75.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "本版更新见发行说明（docs/release-notes/0.75.0.md 未提供）"
+        },
+        {
+          "version": "0.74.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.74.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "组件目录信任链：zip 级 sha256 钉死 + Ed25519 签名验签（防附件/索引被换）"
+        },
+        {
+          "version": "0.74.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.74.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "组件体系升级：统一目录基建、主包升级自动更新组件、能力/权限声明、新组件强制沙箱、商店显示权限、发版体积记录"
+        },
+        {
+          "version": "0.73.2",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.73.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "组件管理进设置面板（按需安装/更新/卸载）；撤掉首启合集弹窗"
+        },
+        {
+          "version": "0.73.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.73.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "轻量版首启改为「常用组件合集」一次下载；失败源会话记忆 + 提示去重，不再反复卡死"
+        },
+        {
+          "version": "0.73.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.73.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "模块化运行时与组件商店：功能组件可按需安装，主包保持轻量"
+        },
+        {
+          "version": "0.72.4",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.72.4.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "设置面板「翻译引擎与术语表」一拆为三：翻译引擎 / 术语表与全文翻译优化 / PDF 对照翻译，各自独立折叠，引擎参数不再和术语表挤在一张长卡里；账号卡里的邮箱改为链接色显示，一眼可知点击可切换明文。"
+        },
+        {
+          "version": "0.72.3",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.72.3.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "设置面板可访问性与深色主题修复：输入框、选择框、按钮、可点选项的描边加深到可辨识（WCAG 1.4.11 达标）；用户手动选择深色主题时不再出现「半深半浅」混搭，深色下原生复选框也不再渲染成白块；键盘 Tab 可到达全部可点元素并显示清晰焦点环；术语表编辑框恢复多行高度；窄窗口下卡片折叠箭头靠右对齐。"
+        },
+        {
+          "version": "0.72.2",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.72.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "设置面板设计修复：深色主按钮/状态色对比度补齐 AA、焦点环实色化、19 卡图标 emoji 换内联 SVG、label 关联与假按钮键盘可达、付款弹窗 Esc 与焦点回收、术语表编辑框恢复多行、订阅与云同步高级参数折叠收纳、动词与反馈位统一。翻译模块重构：单一 translate.js 拆为 5 子模块+门面，接口不变。"
+        },
+        {
+          "version": "0.72.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.72.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "修复「更新到 0.72.0 后仍报 403」：桥接现在会比对运行中代理的版本，不符就自动停旧起新（Python 进程不会热加载 proxy.py，只覆盖文件无效，这是上一版漏掉的关键一步）；代理补上 /__shutdown 与真正可用的 stop（0.1.3），加载项 0.2.2。升级后到 设置 → WPS 集成 → 安装或更新加载项，看到「代理已启动 v0.1.3」即可；若提示旧代理停不掉，重启一次电脑"
+        },
+        {
+          "version": "0.72.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.72.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "WPS 集成修复：其他电脑上检索/插入/导出诊断包全部 403 —— 部分 WPS 会把本地页面来源序列化成 file://，代理白名单已放行；升级后在设置面板点「安装或更新加载项」即可（加载项 0.2.1 + 代理 0.1.2，报错也会指明是 Zotero 未授权还是来源被拒）。同版本还带来技能包商店全面审查：45 个技能包逐条修订、新增 11 个共 56 个，修复 9 处承诺与交付不一致、{input} 丢失用户输入等真实缺陷"
+        },
+        {
+          "version": "0.71.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.71.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "WPS 集成卡片改为对接 Papilot Cite：加载项随包分发、一键安装、旧版 wps-zotero 残留一键清理；启动诊断节流、列渲染缓存、pdf.js 延迟加载"
+        },
+        {
+          "version": "0.71.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.71.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "订阅的期刊现在会出现在左侧：自动在「我的文库」下建「订阅期刊 / 刊名」分类，新文章入库即归类、历史文章可一键回填（中文刊同样有效）；能解析到 RSS 的刊（Elsevier / Nature / Science / BMJ / 知网等）再自动挂到 Zotero 原生【订阅】区，点开就能看新文章。设置面板「我的订阅」下方新增「同步到左侧面板」按钮与状态行。"
+        },
+        {
+          "version": "0.70.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.70.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "新增「标签管理」：右键任一标签即可批量重命名/合并/加父标签/改路径/套配色，一律先预览再执行、执行前自动快照可回滚，另有标签体检（重复、孤儿、过深）与体系视图。同版本还带来「按期刊订阅」（内置 525 种跨学科期刊，搜中文名/缩写/ISSN 一键订阅，目录外走 OpenAlex 3 万+ 刊源），以及 Papilot Cite 的 WPS 加载项命令修正（刷新/插入引文/文献表不再无响应）。"
+        },
+        {
+          "version": "0.69.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.69.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "按期刊订阅三处真机修复：首屏总数、删除后状态同步、首次补跑提示"
+        },
+        {
+          "version": "0.69.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.69.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "检索订阅新增「按期刊订阅」：内置 525 种跨学科期刊（18 个学科、中文别名，ISSN 已逐条在线核验），搜中文名 / 缩写 / ISSN 即可一键订阅该刊最新文章，不用再去期刊官网找 RSS 或手拼检索式；目录外的期刊可直接搜 OpenAlex 3 万+ 刊源。期刊条件可与关键词叠加（如「The Lancet + 心肌梗死」）；默认每天 08:00 取近 30 天、最多 10 条、命中自动入库，可在订阅列表改频率。功能中心的「检索订阅」入口现在直接落到这张卡。"
+        },
+        {
+          "version": "0.68.4",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.68.4.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "修「直达」点了不跳：设置面板的滚动容器有嵌套，面板外侧 Zotero 的容器才是真正滚动的那一层，而中间可能有 overflow:hidden 的裁切层——旧实现写到裁切层上，scrollTop 不动也不报错。现在改成「写完回读 scrollTop，没变就换下一层」，并显式兜底 Zotero 的 #prefs-content；跳转后目标分类会闪一下，确保看得见落点。若仍失败会把现场写进 diagJump 便于排查。"
+        },
+        {
+          "version": "0.68.3",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.68.3.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "设置面板修订：账号邮箱默认脱敏（首 2 字 + ***，点击可看完整地址），并修掉「昵称为空时标题回显完整邮箱」的泄露；修复「直达」按钮点了没反应（HTML 按钮误绑 XUL 的 command 事件），直达现在会先清搜索、展开目标卡并记住折叠状态，滚动时高亮当前分类；搜索可命中卡片内的设置项名，0 命中给出提示；工具条计数修正为 19 项；首次进入默认展开「账号与会员」；会员对比表默认收起；知网 / 坚果云卡片增加「也可存到账号与密钥」提示。"
+        },
+        {
+          "version": "0.68.2",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.68.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "WPS 集成：加载项改为独立发布物并支持卡片内一键下载安装（GPL 组件不进 xpi）；安装做目录穿越校验与原子替换"
+        },
+        {
+          "version": "0.68.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.68.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "设置面板新增「WPS 集成」卡片（个人版可用）：检测加载项/信任/代理/Zotero 端口，一键修复代理与注册，可选启动时自动拉起 CORS 代理"
+        },
+        {
+          "version": "0.68.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.68.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "首次使用向导接线（首启一次 / 工具菜单 / 设置内入口）；设置面板新增「推荐配置」一键补齐体验项；三个窗口控件统一到 ui-kit"
+        },
+        {
+          "version": "0.67.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.67.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "账号与密钥中心扩展：覆盖 8 类凭据，新增知网「账号+密码」合并托管与可逐项开启的「仅托管」模式（值只存你自己账号的密文、本机不留明文，离线时该项不可用），从账号取回需确认、访问记录清空也留痕。"
+        },
+        {
+          "version": "0.66.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.66.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "新增「账号与密钥」个人中心（专业版）：知网、坚果云、期刊分区与自定义 AI 模型的账号/密钥集中管理——默认脱敏显示、按需解锁、可设访问口令与自动隐藏，敏感值可加密托管到自己的账号（换机一键取回），并记录本地访问审计。"
+        },
+        {
+          "version": "0.65.2",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.65.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "统一设计令牌词汇表：设置面板与四个独立窗口共用一套 --pp-* 语义（明暗三态齐备），为后续组件层统一打地基"
+        },
+        {
+          "version": "0.65.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.65.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "门禁三态（跳过不再算通过）+ 测试 CI；版本号单源；打包自动同步更新清单；设置面板标题行支持键盘操作"
+        },
+        {
+          "version": "0.65.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.65.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "设置面板按 7 类重组 + 令牌制视觉统一"
+        },
+        {
+          "version": "0.64.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.64.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "easyScholar 密钥托管：自备 SecretKey 加密存进自己账号（AES-256-GCM），换电脑或重装后自动取回\n分区列在本机未填 Key 时自动回落账号托管副本，设置面板新增「存到我的账号 / 从账号取回 / 删除托管」\n修复：0.18 时代遗留的负缓存没有过期时间，会让期刊永久空白（即使后来配好 Key）——现在自动过期重查\n修复：启动时账号会话还没恢复，托管 Key 取不回（改为轮询 + 会话变化重试）"
+        },
+        {
+          "version": "0.63.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.63.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "扫描件 OCR：内置 pdf.js 本地渲染 + 视觉模型逐页转写，结果只存本机并自动供 AI 问答使用\n新增笔记大纲与批量整理（目录 / 加标签 / 移分类 / 统一前缀 / 合并）"
+        },
+        {
+          "version": "0.62.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.62.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "新增「导出到 Obsidian」：每篇一个 Markdown（含 front-matter / 批注 / 国标引用），只写不回读、同名不覆盖\n沿用 0.61.0 的 GB/T 7714 导出与笔记模板条件块"
+        },
+        {
+          "version": "0.61.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.61.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "新增 GB/T 7714 参考文献导出（顺序编码制 / 著者-出版年制，可直接粘进 Word）\n笔记模板升级为条件块 + 循环 + 十余个字段占位符"
+        },
+        {
+          "version": "0.60.2",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.60.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "设置面板新增「免费版 vs 专业版」对照表：AI 额度 / 可用模型 / 第三方文献源 / 共有能力一目了然\n免费版已含全部核心功能，差异集中标注，不再靠营销文案猜测"
+        },
+        {
+          "version": "0.60.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.60.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "会员订单支持在线支付：扫码后自动开通，不必再等人工核销\n余额拦截开关修复：配置缺省不再静默放行（付费阀门不再失效）\n订阅额度有效期跟随会员到期日（续费会延长，过期不再白送）\n已付款但过期的订单仍会到账；充值单不再显示成「永久会员」\n同价多单对账支持用备注里的订单号/邮箱自动匹配\n（含 0.60.0 云同步批次 2：删除可传播 / 设置项三向合并 / 冲突留档）"
+        },
+        {
+          "version": "0.60.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.60.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "云同步批次 2：删除可传播（仅技能包/安装包；对端删除后又改过的不删）\n设置项冲突改为逐键三向合并，两台机器改不同设置不再互相覆盖\n设置面板新增「冲突留档」列表与打开目录\nWindows 非法文件名下载前跳过；仅大小写不同的云端文件不再互相覆盖"
+        },
+        {
+          "version": "0.59.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.59.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "坚果云云同步（WebDAV）：设置项 / AI 对话 / 技能包与安装包统一同步，增量、冲突两份都留、大文件分卷续传\n快照分层：不再同步缓存、阅读统计与机器绝对路径，避免换机改坏对方配置\n索引按账号+同步目录隔离；旧分卷自动清理；分卷下载加组装上限与 SHA-256 校验\n扫描上限与自适应限流（遇限流自动降速），配额满立即中止并提示"
+        },
+        {
+          "version": "0.58.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.58.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "检索订阅增强：收藏 / 忽略反馈学习（微调排序，忽略不再进速递）\n作者追踪：订阅可填作者，五源支持作者检索 + 推荐作者轨道\n定时运行有新增时弹系统通知（可关）\nOpenAlex 可选免费 Key（提高配额，不进云同步）"
+        },
+        {
+          "version": "0.57.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.57.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "检索订阅 v2：五源检索（arXiv / OpenAlex / Crossref / Europe PMC / PubMed）\n按研究领域推荐主题 + 一句话 AI 建订阅 + 试跑预览\n每日 / 每周调度、启停编辑、运行历史、订阅导入导出\n自动入库关闭时不再误记为已见；推荐结果本机缓存 12 小时"
+        },
+        {
+          "version": "0.56.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.56.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          }
+        },
+        {
+          "version": "0.55.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.55.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
