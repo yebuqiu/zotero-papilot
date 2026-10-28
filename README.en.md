@@ -22,7 +22,7 @@ It consists of two parts that version independently:
 | Part | What it is | Do you need to deploy it? |
 |---|---|---|
 | **The add-on** | `bootstrap.js` + `chrome/content/**`, a Manifest V2 extension with ~100 modules | No — install the `.xpi` and go |
-| **Account backend** | `server/`, pure Node standard library, zero third-party dependencies: sign-up/sign-in, the official AI gateway and admin pages | **Not for regular users** (officially hosted at `pp.xinglintools.top`); only for self-hosting or development |
+| **Account & membership service** | Sign-up/sign-in, the official AI gateway, membership / billing / orders / admin console | **Not open-sourced here**; nothing to deploy for regular users, and the add-on works offline without it |
 
 Three design rules:
 
@@ -156,32 +156,15 @@ The script checks that all sources exist, writes the zip, then re-opens it to as
 
 It starts with Zotero; no extra process and no background daemon. Startup logs `Papilot startup` to **Help → Debug Output**, and self-check logs also go to `papilot-boot.log` in the Zotero data directory.
 
-### 4.2 Account backend (self-hosting / development only)
+### 4.2 Account & membership service (not in this repository)
 
-```bash
-# Foreground debugging (cwd must be server/)
-cd server && node account-server.js
+Sign-up/sign-in, the official AI gateway, and membership / billing / orders / admin console are commercial implementations and are **not open-sourced here** — that is why there is no `server/` directory and no backend launcher scripts in this repository.
 
-# Production start (idempotent: exits if :8000 already answers)
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-account-server.ps1
+The add-on does not depend on it: every offline feature (multi-engine translation, search & subscriptions, note cards, tagging, side-by-side PDF translation) works without signing in. Only the official AI channel needs the service; bring your own API key to stay fully local.
 
-# Health check
-curl http://127.0.0.1:8000/api/health
-```
+### 4.3 Public tunnel (only when self-hosting a service)
 
-GUI launcher (recommended): double-click **`启动Papilot后台.bat`**, which uses `wscript` to open a windowless WinForms console. The left sidebar has runtime status, account backend, public tunnel and account management.
-
-- Server data lives in `server/data/*.json` (users, orders, tokens, channel keys) and is **git-ignored**.
-- After changing server code you must restart the production process in the same round, or the plugin keeps talking to the old logic.
-
-### 4.3 Public tunnel (only when self-hosting and needing external access)
-
-```bash
-powershell -File scripts/tunnel/tunnel.ps1 status|start|stop|restart
-# or double-click 启动公网隧道.bat / 停止公网隧道.bat
-```
-
-Tunnel `paperpilot` → `pp.xinglintools.top` → `127.0.0.1:8000`. Health means `readyConnections > 0` on `/ready` (**an open port is not health**). Online-payment callbacks require `PP_PUBLIC_URL` to be a public https address.
+The repository keeps `scripts/tunnel/` and its start/stop helpers so a self-hosted service can be exposed to the internet. If you do not run a service, you never need them.
 
 ### 4.4 Where data lives
 
@@ -415,9 +398,8 @@ bootstrap.js            # lifecycle entry; registers chrome://papilot/ and loads
 chrome/content/         # xhtml UI + scripts/ (core / ai / features / columns / panels)
 locale/                 # zh-CN / en-US FTL strings
 prefs.js                # every default preference, individually commented
-server/                 # zero-dependency Node backend (accounts / AI gateway / admin)
 scripts/                # packaging, gates, wiring scan, release, GitHub sync, tunnel
-test/                   # 73 Node test suites
+test/                   # 91 Node test suites
 tools/arxiv/            # arXiv toolkit (source of the generated core)
 docs/                   # design notes, verification reports, research
 dist/                   # packaged xpi releases

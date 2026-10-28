@@ -22,7 +22,7 @@ Papilot 是运行在 **Zotero 7–10** 内的第三方插件，定位是「文�
 | 组成 | 说明 | 是否需要你部署 |
 |---|---|---|
 | **插件本体** | `bootstrap.js` + `chrome/content/**`，Manifest V2 扩展，约 100 个模块 | 否，装 `.xpi` 即用 |
-| **账号后台** | `server/`，纯 Node 标准库、零第三方依赖；提供注册登录、官方 AI 网关与管理页 | **普通用户不需要**（官方托管在 `pp.xinglintools.top`）；自建或二次开发才需要 |
+| **账号与会员服务端** | 注册登录、官方 AI 网关、会员 / 计费 / 订单 / 管理后台 | **不在本仓库开源**；普通用户无需部署，插件离线功能不依赖它 |
 
 三条设计原则：
 
@@ -122,7 +122,7 @@ Papilot 是运行在 **Zotero 7–10** 内的第三方插件，定位是「文�
 |---|---|
 | Zotero | **7 / 8 / 9 / 10**（`strict_min_version 6.999`，`strict_max_version 99.*`） |
 | 操作系统 | Windows / macOS / Linux |
-| 账号后台（仅自建） | Node ≥ 14；**零第三方依赖** |
+| 账号与会员服务端 | 不在本仓库开源，无需自行准备 |
 
 ### 3.2 安装插件
 
@@ -161,32 +161,15 @@ python scripts/build-xpi.py 0.55.0     # → dist/papilot-0.55.0.xpi
 
 插件随 Zotero 启动，无需额外进程、无需常驻后台。启动时在 **帮助 → 调试输出** 打一条 `Papilot startup`；自检日志同时写入 Zotero 数据目录下的 `papilot-boot.log`。
 
-### 4.2 账号后台（自建 / 二次开发才需要）
+### 4.2 账号与会员服务端（不在本仓库）
 
-```bash
-# 前台调试（cwd 必须是 server/）
-cd server && node account-server.js
+注册登录、官方 AI 网关、会员 / 计费 / 订单 / 管理后台属于商业实现，**不在本仓库开源**，因此这里没有 `server/` 目录，也没有配套的后台启动脚本。
 
-# 生产拉起（幂等：8000 已有应答即退出）
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-account-server.ps1
+插件本体不依赖它：不登录也能使用全部离线功能（多引擎翻译、检索与订阅、笔记卡片、标签管理、PDF 对照翻译等）；只有用官方 AI 通道时才需要连接服务端，自备 API Key 则完全离线可跑。
 
-# 健康检查
-curl http://127.0.0.1:8000/api/health
-```
+### 4.3 公网通道（仅自行部署服务端时需要）
 
-图形启动器（推荐）：双击 **`启动Papilot后台.bat`**，经 `wscript` 无窗拉起 WinForms 控制台，左侧是运行状态 / 账号后台 / 公网通道 / 账号管理。
-
-- 服务端数据是 `server/data/*.json`（用户、订单、令牌、通道密钥），**已被 `.gitignore` 排除**，不进版本库。
-- 改完服务端代码必须同轮重启生产进程，否则插件连到的还是旧逻辑。
-
-### 4.3 公网通道（仅在自建并需要外网访问时）
-
-```bash
-powershell -File scripts/tunnel/tunnel.ps1 status|start|stop|restart
-# 或双击 启动公网隧道.bat / 停止公网隧道.bat
-```
-
-隧道 `paperpilot` → `pp.xinglintools.top` → `127.0.0.1:8000`；健康判据是 `/ready` 的 `readyConnections > 0`（**端口通 ≠ 健康**）。在线支付回调依赖 `PP_PUBLIC_URL` 为公网 https 地址。
+仓库保留了 `scripts/tunnel/` 与启停脚本，供自行部署服务端时把本地端口映射到公网；不部署服务端则完全用不到。
 
 ### 4.4 数据落点
 
@@ -435,9 +418,8 @@ bootstrap.js            # 生命周期入口，注册 chrome://papilot/ 并加�
 chrome/content/         # xhtml 界面 + scripts/（core / ai / features / columns / panels）
 locale/                 # zh-CN / en-US 的 FTL 文案
 prefs.js                # 全部默认偏好（带逐项注释）
-server/                 # 零依赖 Node 账号后台（账号 / AI 网关 / 管理页）
 scripts/                # 打包、门禁、接线扫描、发版、GitHub 同步、隧道
-test/                   # 73 个 Node 测试套件
+test/                   # 91 个 Node 测试套件
 tools/arxiv/            # arXiv 检索工具包（核心生成物的源）
 docs/                   # 设计文档、验证报告、调研
 dist/                   # 历史 xpi 产物

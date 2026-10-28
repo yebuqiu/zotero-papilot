@@ -1,19 +1,38 @@
 # AGENTS.md · Papilot 文献副驾
 
 > 本文件面向 AI 编码代理与人类协作者，说明**本仓库真实现状**下的开发方式。
-> 所有命令、路径、工具链均来自仓库实际内容（`scripts/`、`test/`、`server/`、`manifest.json`）。
+> 所有命令、路径、工具链均来自仓库实际内容（`scripts/`、`test/`、`manifest.json`）。
 > 若你只是要读功能说明，请看 [README.md](README.md) 与 [docs/](docs/)；本文件只讲"怎么改、怎么验、怎么发"。
+
+---
+
+## 0. 先读这条（2026-10-28 变更）
+
+**`server/` 目录不存在于本仓库。** 账号、会员、计费、订单、优惠券、在线支付、管理后台的实现，
+连同 29 个服务端测试套件，已作为商业实现移出公开仓库（历史亦已重写），本机与私有仓保留完整代码。
+
+因此在本仓库里：
+
+- 不要再去找 `server/account-server.js`、`server/lib/*`、`server/public/admin.html`——它们不在。
+- 本文件 §3.3、§3.7、§3.8 仍保留服务端维护说明，**供私有仓维护时参考**，在本仓库内执行不了。
+- `preflight.py` 的 `_moved_suites` 白名单内套件在文件缺失时记「未执行」（既不算通过、也不算跳过）；
+  白名单之外缺文件仍按失败处理。
+- 插件侧与账号相关但**仍在本仓库**的代码：`chrome/content/prefs-account.js`、
+  `chrome/content/scripts/ai/account.js`、`chrome/content/scripts/features/cred-vault.js`
+  —— 它们只通过 HTTPS 调远程服务端，不依赖本地目录。
+- 技能包在线目录的单一真源在 **`bundles/skill-catalog.json`**（由 `scripts/build-skill-catalog.js` 生成）；
+  本机存在 `server/public/` 时生成器会额外写一份托管副本。
 
 ---
 
 ## 1. 项目概览
 
-Papilot 是一个 **Zotero 7–10 插件**（浏览器扩展形态，bootstrapped），外加一套**随仓库自带的零依赖 Node 账号后台**。两者版本各自独立演进。
+Papilot 是一个 **Zotero 7–10 插件**（浏览器扩展形态，bootstrapped）。账号与会员服务端**不在本仓库**，版本独立演进。
 
 | 组成 | 说明 | 版本锚点 |
 |---|---|---|
 | **插件本体** | `bootstrap.js` + `chrome/content/**`，Manifest V2 扩展，覆盖阅读助手 / 检索发现 / 笔记卡片 / 批量分析 / 库健康 / 标签状态 / MCP 互操作 / 数据列 / 账号会员等 9 类功能 | `manifest.json` 的 `version`（当前 `0.85.0`） |
-| **账号后台** | `server/`，纯 Node 标准库实现：注册登录、会话、会员/订单/激活码/优惠券、官方 AI 模型网关、管理 API 与网页管理页 | `server/account-server.js` 头注释的服务端版本（当前 `1.11.1`） |
+| **账号与会员服务端** | **不在本仓库开源**。注册登录、会话、会员/订单/激活码/优惠券、官方 AI 模型网关、管理 API 与网页管理页 | 随私有仓维护（当前 `1.11.1`） |
 
 - 插件 ID：`papilot@dev.local`；兼容 `strict_min_version: "6.999"` → `strict_max_version: "99.*"`。
 - 授权：**Apache-2.0**（见 [LICENSE](LICENSE) / [NOTICE](NOTICE)）。插件本体永久免费开源。
@@ -141,7 +160,9 @@ node test/migration-notice.test.js        # ID / 版本区间 / 只弹一次 / �
 - 改版本号必须仍满足 `0.54.0 < v < 0.56.0`，并同步 `paperpilot-update.json` 里的条目。
 - 本包**不卸载自己**（会被回收作用域），也不自动装新插件（Zotero 不支持静默安装第二个插件）。
 
-### 3.3 账号后台（服务端）
+### 3.3 账号后台（服务端，**不在本仓库**）
+
+> 本节所有命令与路径只在私有仓/本机可用。本仓库没有 `server/`，照抄会直接失败——见文首「先读这条」。
 
 ```bash
 # 直接前台运行（调试用；cwd 必须是 server/）
