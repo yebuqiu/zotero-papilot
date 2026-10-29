@@ -348,7 +348,8 @@
         "features/citation-trace.js",
         "features/ref-format.js",
         "features/ref-sources.js",
-        "features/ref-import.js"
+        "features/ref-import.js",
+        "tools/py-runtime.json"
       ],
       "files": [
         "scripts/features/citation-context.js",
@@ -357,7 +358,8 @@
         "scripts/features/ref-format.js",
         "scripts/features/ref-import.js",
         "scripts/features/ref-sources.js",
-        "tools/wps-cite.bundle.json"
+        "tools/wps-cite.bundle.json",
+        "tools/py-runtime.json"
       ]
     },
     {

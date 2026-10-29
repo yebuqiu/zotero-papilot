@@ -4,7 +4,10 @@ Zotero ↔ WPS 文字集成：插入引文、生成文献表，并且**引文与
 （从引文跳回 PDF 那页那句话；从台账看还有谁引了它）。
 
 - 适用：WPS 2019+（个人版即可，**不需要 VBA / 企业版**）｜Zotero 7–10｜Windows
-- 依赖：Python 3（只跑一个 130 行的本地代理，标准库，无第三方包）
+- 依赖：Python 3（只跑一个本地代理，标准库，无第三方包）
+  - **终端用户不需要自己装 Python**：Papilot 插件在检测不到解释器时会提供「安装运行环境」，
+    下载一份裁剪过的便携版（约 6MB）到 `%APPDATA%\PapilotCite\python\`，与系统 Python 互不影响。
+    下面第 1 节的 `install.py` 是**开发者/自建部署**路径，仍用系统 Python。
 - 许可：本目录代码 Apache-2.0；不包含任何第三方加载项源码
 
 > 设计取舍（为什么不用 Word 域、为什么不用 Zotero 的 integration protocol、
@@ -166,6 +169,7 @@ python scripts/preflight.py --fast    # 仓库门禁（含上面全部 + 其余�
 | 点「插入引文」窗格不出现 | 该 WPS 版本不支持 `wps.CreateTaskPane` | 见 DESIGN §6 限制 3；其余命令仍可用 |
 | 检索/插入报 403 | ① Zotero 本地 API 没开（最常见）② 代理 Origin 白名单拦了加载项页面 | ① Zotero 设置 → 高级 → 允许其他应用通信；② 看 proxy.log 的 `reject origin:` 行，把 Origin 值反馈给开发者 |
 | 检索报「代理未运行」 | 代理没起 | `pythonw %APPDATA%\PapilotCite\proxy.py`，或重跑 install.py |
+| **启动失败：这台电脑没有 Python 运行环境** | 换到一台没装 Python 的电脑（插件侧 0.87.0 之前只会报「找不到 pythonw.exe」） | Zotero → 设置 → 界面与效率 → WPS 集成 → 点「安装运行环境」（约 6MB，装到 `%APPDATA%\PapilotCite\python\`，不碰系统 Python）。离线电脑：在能上网的机器上装好后，把整个 `%APPDATA%\PapilotCite\python` 目录拷过来即可 |
 | 引文弹窗没有置顶 | 代理版本过旧，或窗口标题不在已验证白名单 | 更新到加载项 0.5.1 / 代理 0.2.1；日志应出现 `raise … "title":"引注对话框"`。只操作精确引文弹窗，主窗口不会被当作兜底目标 |
 | 「回到原文」没反应 | Zotero 未注册 `zotero://` 协议 / 条目没有 PDF | 先在 Zotero 里双击该条目确认能打开 PDF；无 PDF 时退化为"在 Zotero 选中条目" |
 | 刷新后编号乱 | 文档里有手工编辑过的书签名 | 别手工改 `PPC…` 书签；坏了就删掉那条引文重新插入 |

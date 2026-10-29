@@ -22,6 +22,7 @@
 
   let inited = false;
   let busy = false;
+  let state = null;      // 最近一次 status() 快照（按钮据此决定"安装"还是"重装"）
 
   function setMsg(text, kind) {
     const node = $("pp-wps-msg");
@@ -42,6 +43,7 @@
   }
 
   function render(st) {
+    state = st;
     if (!st) {
       okDot(false);
       setText("pp-wps-state", "桥接模块未加载");
@@ -82,6 +84,26 @@
       setText("pp-wps-proxy", st.proxyFile ? "未运行" : "未部署", "#d9534f");
     }
 
+    /* 运行环境（0.87.0）：代理是 .py，没解释器整条链路就是死的。
+     * 之前只有"找不到 pythonw.exe"这一句，用户不知道该怎么办 —— 这里给出可点的下一步。 */
+    const rt = st.runtime || {};
+    const rtBtn = $("pp-wps-runtime-install");
+    if (rt.present) {
+      setText("pp-wps-runtime",
+        `已安装 ${rt.version || ""}${rt.outdated ? "（可更新）" : ""}`.trim(),
+        rt.outdated ? "#c98800" : "#2e9e5b");
+      if (rtBtn) rtBtn.textContent = rt.outdated ? "更新运行环境" : "重新安装运行环境";
+    } else if (rt.manifest) {
+      const mb = (Number(rt.manifest.bytes || 0) / 1048576).toFixed(1);
+      setText("pp-wps-runtime", `未安装（点右边按钮下载 ${mb}MB）`, "#d9534f");
+      parts.push("缺运行环境");
+      if (rtBtn) rtBtn.textContent = "安装运行环境";
+    } else {
+      setText("pp-wps-runtime", "未安装", "#d9534f");
+      if (rtBtn) rtBtn.textContent = "安装运行环境";
+    }
+    if (rtBtn) rtBtn.disabled = !rt.manifest;
+
     /* 这张卡本身就跑在 Zotero 里，"Zotero 没开"是不可能的结论，所以三态分开写：
      * true=端口应答 / false=端口没在听 / null=没法确认（代理没跑，探测不了）。 */
     if (st.zotero === true) {
@@ -106,7 +128,8 @@
     }
 
     const regBad = st.registered && st.registeredBroken;
-    const allOk = st.addon && st.registered && !regBad && st.trusted && st.proxy && st.zotero && !hasLegacy;
+    const allOk = st.addon && st.registered && !regBad && st.trusted && st.proxy && st.zotero
+      && (st.runtime && st.runtime.present) && !hasLegacy;
     okDot(allOk);
     setText("pp-wps-state", allOk ? "可用" : "待处理");
     setText("pp-wps-summary", parts.join(" · "));
@@ -178,6 +201,35 @@
       ok: "安装完成（重启 WPS，首次会问「是否信任」→ 点确定）",
       fail: "安装未完成",
     }));
+
+    /* 运行环境：装完顺手拉一次代理（用户装它就是为了让代理能跑） */
+    bind("pp-wps-runtime-install", "click", async () => {
+      const b = B();
+      if (!b || busy) return;
+      busy = true;
+      const force = !!(state && state.runtime && state.runtime.present);
+      setMsg(force ? "正在重新安装运行环境（约 6MB）…" : "正在下载运行环境（约 6MB）…");
+      try {
+        const r = await b.installRuntime({ force });
+        if (!r.ok) {
+          setMsg("运行环境安装失败：" + (r.error || "未知原因"), "bad");
+          return;
+        }
+        const pr = await b.startProxy();
+        if (pr && pr.started) {
+          setMsg(`运行环境已就绪（Python ${r.version || "?"}）`
+            + (pr.already ? "，代理已在运行" : "，代理已启动"), "ok");
+        } else {
+          setMsg(`运行环境已就绪（Python ${r.version || "?"}），但代理未启动：`
+            + ((pr && pr.error) || "未知原因"), "bad");
+        }
+      } catch (e) {
+        setMsg("运行环境安装失败：" + String((e && e.message) || e), "bad");
+      } finally {
+        busy = false;
+        await refresh(false);
+      }
+    });
 
     bind("pp-wps-proxy-start", "click", async () => {
       const b = B();

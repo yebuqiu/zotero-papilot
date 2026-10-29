@@ -27,6 +27,10 @@ node_modules/
 !dist/*.xpi
 # 瘦身试打包（--modular 验证用；未过 init 门控前不随发行版入库）
 dist/*-slim.xpi
+# 0.87.0 WPS 运行环境构建缓存（源包 10.6MB + 解压探针，由 scripts/build-python-runtime.py 生成）
+dist/runtime/
+# 离线安装包（zip + bat，给没装 Python 的电脑用；产物，不入库）
+dist/offline/
 # 0.73.0 模块包：每次构建由 scripts/build-module.py 从仓库源文件重新生成，
 # 属于发布到模块仓库的制品，不入主仓（避免 1.3MB 二进制重复堆积）
 dist/modules/

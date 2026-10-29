@@ -31,12 +31,25 @@ Papilot 是一个 **Zotero 7–10 插件**（浏览器扩展形态，bootstrappe
 
 | 组成 | 说明 | 版本锚点 |
 |---|---|---|
-| **插件本体** | `bootstrap.js` + `chrome/content/**`，Manifest V2 扩展，覆盖阅读助手 / 检索发现 / 笔记卡片 / 批量分析 / 库健康 / 标签状态 / MCP 互操作 / 数据列 / 账号会员等 9 类功能 | `manifest.json` 的 `version`（当前 `0.85.0`） |
+| **插件本体** | `bootstrap.js` + `chrome/content/**`，Manifest V2 扩展，覆盖阅读助手 / 检索发现 / 笔记卡片 / 批量分析 / 库健康 / 标签状态 / MCP 互操作 / 数据列 / 账号会员等 9 类功能 | `manifest.json` 的 `version`（当前 `0.85.1`） |
 | **账号与会员服务端** | **不在本仓库开源**。注册登录、会话、会员/订单/激活码/优惠券、官方 AI 模型网关、管理 API 与网页管理页 | 随私有仓维护（当前 `1.11.1`） |
 
 - 插件 ID：`papilot@dev.local`；兼容 `strict_min_version: "6.999"` → `strict_max_version: "99.*"`。
 - 授权：**Apache-2.0**（见 [LICENSE](LICENSE) / [NOTICE](NOTICE)）。插件本体永久免费开源。
 - 设计参考了官方 `Make It Red` / `zotero-plugin-template` / `zoterostyle` 的插件结构（见 `bootstrap.js` 头注释）。
+
+> **WPS 集成的 Python 依赖（0.87.0 起用户不需要自己装）**
+> 本地代理 `wps-cite/proxy/proxy.py` 需要解释器，但**只在代理这一层**用（插件本体是 JS）。
+> 从 0.87.0 起插件按需下载一份裁剪过的官方便携运行时（约 6MB，落在
+> `%APPDATA%\PapilotCite\python\`），产物由 `scripts/build-python-runtime.py` 生成：
+> ```bash
+> python scripts/build-python-runtime.py          # 下载→裁剪→冒烟→写清单（幂等）
+> python scripts/build-python-runtime.py --force  # 换 Python 版本时重做
+> python scripts/build-python-runtime.py --check  # 部署前核对清单与产物 sha256
+> ```
+> 它产出两样东西、**必须同时更新**：`server/public/dl/papilot-python-embed-win64.zip`
+> （部署到服务端，gitignore 不入库）与 `chrome/content/tools/py-runtime.json`
+> （随 xpi 分发，入库）。两者不一致 = 外机下载后 sha256 校验失败，`test/wps-runtime-manifest.test.js` 会拦在门禁。
 
 ### 技术栈
 

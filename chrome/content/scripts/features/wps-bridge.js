@@ -20,7 +20,7 @@
  *   · `chrome/content/tools/wps/proxy.py`（21931 的旧代理）—— 现由 21932 的代理取代；
  *   · 「安装脚本目录」这种要用户自己填路径的配置 —— 载荷随包分发，不需要外部脚本。
  */
-/* global Zotero, Services, PathUtils, IOUtils, Ci */
+/* global Zotero, Services, PathUtils, IOUtils, Ci, Cc, Cu, crypto, fetch, setTimeout, clearTimeout */
 
 var WpsBridge = {
   ADDON_NAME: "papilot-cite",
@@ -247,6 +247,7 @@ var WpsBridge = {
       proxyUpstream,
       zotero: zoteroPort,
       payload,
+      runtime: await this.runtimeStatus(),
       legacy: { dirs: legacy, publish: pub.legacy },
       proxyHome: this.proxyHome(),
       addonRoot: this.jsaddonsDir(),
@@ -381,7 +382,19 @@ var WpsBridge = {
     }
     // ★ 必须过一遍 startProxy：它会在版本不符时停旧起新。
     //   只写文件不重启 = 旧进程继续用旧代码应答（0.72.0 外机踩过）。
-    const pr = await this.startProxy();
+    let pr = await this.startProxy();
+    /* 换到没装 Python 的电脑：装完加载项就顺手把运行环境装上，
+     * 否则用户看到「安装完成」却发现代理起不来（0.87.0）。 */
+    if (pr && pr.needRuntime) {
+      report.push("没装 Python，正在下载运行环境（约 6MB）…");
+      const rt = await this.installRuntime();
+      if (rt.ok) {
+        report.push(rt.already ? `运行环境已是 ${rt.version}` : `运行环境已装 ${rt.version}`);
+        pr = await this.startProxy();
+      } else {
+        report.push("运行环境安装失败：" + rt.error);
+      }
+    }
     if (pr && pr.stale) {
       report.push(`⚠ 旧代理 v${pr.version || "?"} 仍在运行（应升到 v${pr.want || "?"}），自动停止失败——请重启电脑`);
     } else if (pr && pr.error) {
@@ -424,6 +437,303 @@ var WpsBridge = {
     return { ok: true, removed };
   },
 
+  // ---------- 运行环境（便携 Python） ----------
+  /*
+   * 为什么要有这一段（0.87.0，外机实踩）：
+   * 代理是 .py，需要解释器；而**用户机器上不一定有 Python** —— 报错就是那句
+   * 「找不到 pythonw.exe（Papilot Cite 依赖本机 Python 3）」，WPS 集成整条链路作废。
+   *
+   * 代理只用标准库（无 pywin32、无第三方包），所以官方便携版裁剪后就能跑。
+   * 分发方式选了「首次一键下载」而不是塞进 xpi：运行时压缩后 6.1MB，而 xpi 现在 2.1MB，
+   * 让所有人都为 WPS 多下 6MB 不合理；不下的人一分钱不花。
+   *
+   * 落点固定 %APPDATA%\PapilotCite\python\ —— 这正是 `_whichPythonw()` 的第一优先级，
+   * 装好后现有探测逻辑零改动即可命中。
+   *
+   * 三条纪律：
+   *   · 下载后**必须**校验 sha256（清单在 chrome/content/tools/py-runtime.json，
+   *     由 scripts/build-python-runtime.py 与 zip 同一次构建产出）；crypto 不可用时降级为不校验但记录；
+   *   · 解压只认清单里的 entries，不调目录枚举（各 Gecko 版本行为不一致），且逐个过 `_safeRel`；
+   *   · 解压前先停旧代理：python312.dll 被运行中的进程占用时写不进去（同 0.72.1 那个坑）。
+   */
+
+  RUNTIME_MANIFEST_REL: "chrome/content/tools/py-runtime.json",
+
+  runtimeHome() {
+    return PathUtils.join(this.proxyHome(), "python");
+  },
+
+  runtimeExe() {
+    return PathUtils.join(this.runtimeHome(), "pythonw.exe");
+  },
+
+  runtimeMetaPath() {
+    return PathUtils.join(this.proxyHome(), "python-runtime.json");
+  },
+
+  /** 随包清单（下载地址 / sha256 / 条目名单）；瘦身包里没有 → 返回 null */
+  async runtimeManifest() {
+    if (this._runtimeMan !== undefined) return this._runtimeMan;
+    this._runtimeMan = null;
+    try {
+      const res = await fetch(this._rootURI + this.RUNTIME_MANIFEST_REL);
+      if (!res || res.ok === false) throw new Error("HTTP " + (res ? res.status : 0));
+      const j = JSON.parse(String(await res.text()));
+      if (j && Array.isArray(j.urls) && j.urls.length) this._runtimeMan = j;
+    } catch (e) {
+      /* 瘦身包（--modular）里清单在组件内：读不到 ≠ 故障，状态里会显示"未知" */
+    }
+    return this._runtimeMan;
+  },
+
+  /** 本机运行环境状态：装没装、装的是哪版、随包清单说该装哪版 */
+  async runtimeStatus() {
+    const present = await this._exists(this.runtimeExe());
+    let meta = null;
+    try {
+      meta = JSON.parse((await this._read(this.runtimeMetaPath())) || "null");
+    } catch (e) { meta = null; }
+    const man = await this.runtimeManifest();
+    return {
+      present,
+      exe: this.runtimeExe(),
+      version: (meta && meta.pythonVersion) || "",
+      installedAt: (meta && meta.installedAt) || "",
+      manifest: man ? {
+        pythonVersion: man.pythonVersion, bytes: man.bytes, sha256: man.sha256,
+      } : null,
+      // 装过、但清单换了 sha（Python 升级）→ 可更新
+      outdated: !!(present && meta && man && meta.sha256 && man.sha256
+        && meta.sha256 !== man.sha256),
+    };
+  },
+
+  /** 下载到 dest（6MB 级，超时放宽；fetch 在 bootstrap 里可用，payload() 已依赖它） */
+  async _downloadTo(url, dest) {
+    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    // bootstrap 作用域不一定注入 setTimeout，没有就不设超时（fetch 自己会失败）
+    const timer = (ctrl && typeof setTimeout === "function")
+      ? setTimeout(() => ctrl.abort(), 240000) : null;
+    try {
+      const res = await fetch(url, ctrl ? { signal: ctrl.signal, cache: "no-store" } : {});
+      if (!res || res.ok === false) throw new Error("HTTP " + (res ? res.status : 0));
+      const buf = await res.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      if (!bytes.length) throw new Error("下载到 0 字节");
+      await IOUtils.write(dest, bytes);
+      return bytes.length;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  },
+
+  /** 文件的 sha256（crypto 不可用返回空串 → 调用方按"未校验"处理，不冒充通过） */
+  async _sha256File(path) {
+    try {
+      /* bootstrap 作用域默认不保证有 crypto —— 显式引入一次。
+       * 引不到就降级（shaChecked=false），绝不当成"校验通过"。 */
+      if (typeof crypto === "undefined" && typeof Cu !== "undefined" && Cu.importGlobalProperties) {
+        try { Cu.importGlobalProperties(["crypto"]); } catch (e) { /* 老版本 Gecko */ }
+      }
+      if (typeof crypto === "undefined" || !crypto || !crypto.subtle) return "";
+      const bytes = await IOUtils.read(path);
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch (e) {
+      return "";
+    }
+  },
+
+  _openZipReader(path) {
+    const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    file.initWithPath(path);
+    const reader = Cc["@mozilla.org/libjar/zip-reader;1"].createInstance(Ci.nsIZipReader);
+    reader.open(file);
+    return reader;
+  },
+
+  /** 读一个 zip 条目的字节（nsIBinaryInputStream 一次取完，运行时单文件最大 6.8MB） */
+  _readEntry(reader, name) {
+    const stream = reader.getInputStream(name);
+    try {
+      const bis = Cc["@mozilla.org/binaryinputstream;1"].createInstance(Ci.nsIBinaryInputStream);
+      bis.setInputStream(stream);
+      return new Uint8Array(bis.readByteArray(bis.available()));
+    } finally {
+      try { stream.close(); } catch (e) { /* 已关 */ }
+    }
+  },
+
+  /**
+   * 按清单解压（纯逻辑，reader 由调用方给 —— 单测注入假 reader 就能覆盖穿越/缺条目）。
+   * 与 installAddon 的载荷落盘同一套安全约束：相对路径、无 `..`、无盘符、无绝对路径。
+   */
+  async _extractZipEntries(reader, dstDir, entries) {
+    const written = [];
+    const bad = [];
+    for (const name of entries || []) {
+      const safe = this._safeRel(name);
+      if (!safe || !reader.hasEntry(name)) { bad.push(name); continue; }
+      const bytes = this._readEntry(reader, name);
+      const dst = PathUtils.join(dstDir, ...safe.split("/"));
+      await IOUtils.makeDirectory(PathUtils.parent(dst), { ignoreExisting: true });
+      await IOUtils.write(dst, bytes);
+      written.push(safe);
+    }
+    return { written, bad };
+  },
+
+  async _writeRuntimeMeta(man, extra) {
+    const meta = Object.assign({
+      pythonVersion: man.pythonVersion,
+      sha256: man.sha256,
+      id: man.id,
+      installedAt: new Date().toISOString(),
+    }, extra || {});
+    await this._write(this.runtimeMetaPath(), JSON.stringify(meta, null, 2));
+    return meta;
+  },
+
+  /** 自动补装节流：同一个坑 24 小时内不反复下载（失败也不会每次启动拖慢 Zotero） */
+  async _autoInstallAllowed() {
+    const p = PathUtils.join(this.proxyHome(), "runtime-retry.json");
+    let at = 0;
+    try { at = Number((JSON.parse((await this._read(p)) || "{}") || {}).at) || 0; } catch (e) { at = 0; }
+    if (at && Date.now() - at < 24 * 3600 * 1000) return false;
+    try { await this._write(p, JSON.stringify({ at: Date.now() })); } catch (e) { /* 只读盘也不该拦着 */ }
+    return true;
+  },
+
+  /** 安装运行环境（幂等；并发调用合并成一次） */
+  async installRuntime(opts) {
+    if (this._runtimeJob) return this._runtimeJob;
+    this._runtimeJob = (async () => {
+      try { return await this._installRuntimeInner(opts || {}); }
+      finally { this._runtimeJob = null; }
+    })();
+    return this._runtimeJob;
+  },
+
+  async _installRuntimeInner(opts) {
+    const man = await this.runtimeManifest();
+    if (!man) {
+      return {
+        ok: false,
+        error: "读不到运行环境清单（chrome/content/tools/py-runtime.json）。"
+          + "瘦身包请先在 组件商店 安装「引文与导出」组件",
+      };
+    }
+    const cur = await this.runtimeStatus();
+    if (cur.present && !opts.force && cur.version && man.sha256
+        && !cur.outdated && (await this._exists(this.runtimeExe()))) {
+      return { ok: true, already: true, version: cur.version };
+    }
+
+    const zipPath = PathUtils.join(PathUtils.tempDir, "papilot-py-" + Date.now() + ".zip");
+    await IOUtils.makeDirectory(this.proxyHome(), { ignoreExisting: true });
+
+    let got = 0;
+    let used = "";
+    let shaOk = false;
+    const errs = [];
+    for (const base of man.urls || []) {
+      // ?v=<sha 前缀>：文件名固定，靠它破中间层与旧缓存
+      const url = base + (base.indexOf("?") >= 0 ? "&" : "?") + "v=" + String(man.sha256 || "").slice(0, 12);
+      try {
+        got = await this._downloadTo(url, zipPath);
+      } catch (e) {
+        errs.push(url + " → " + String((e && e.message) || e));
+        continue;
+      }
+      /* 校验放在循环里：镜像返回错误页（HTTP 200 但内容不是包）时也要换下一个源，
+       * 而不是直接判失败 —— 多源的意义就在这。 */
+      const sha = await this._sha256File(zipPath);
+      if (sha && man.sha256 && sha !== man.sha256) {
+        errs.push(url + " → sha256 不符（清单 " + String(man.sha256).slice(0, 12)
+          + " / 实得 " + sha.slice(0, 12) + "）");
+        continue;
+      }
+      used = url;
+      shaOk = !!sha;
+      break;
+    }
+    if (!used) {
+      return {
+        ok: false,
+        error: "运行环境下载/校验未通过（" + (errs[0] || "无可用地址") + "）。"
+          + "可在能上网的电脑上装好 Papilot、启动一次 WPS 集成，把 %APPDATA%\\PapilotCite\\python 整个目录拷过来",
+        tried: errs,
+      };
+    }
+
+    try {
+      // 旧实例占着 python312.dll，必须先停
+      if (cur.present) {
+        const stopped = await this._stopProxyByPort();
+        if (!stopped) {
+          return { ok: false, error: "旧代理仍在运行，无法覆盖运行时文件；请重启电脑后再试" };
+        }
+        await Zotero.Promise.delay(300);
+      }
+
+      const dir = this.runtimeHome();
+      await IOUtils.makeDirectory(dir, { ignoreExisting: true });
+      const ex = await this._extractZip(zipPath, dir, man.entries || []);
+      if (!(await this._exists(this.runtimeExe()))) {
+        return {
+          ok: false,
+          error: "解压完成但没有 pythonw.exe（写了 " + ex.written.length + " 个文件，包内清单可能不完整）",
+          bad: ex.bad, via: ex.via,
+        };
+      }
+      await this._writeRuntimeMeta(man, { url: used, bytes: got, shaChecked: shaOk });
+      return {
+        ok: true, version: man.pythonVersion, bytes: got, files: ex.written.length,
+        skipped: ex.bad, shaChecked: shaOk, url: used, via: ex.via,
+      };
+    } finally {
+      try { await IOUtils.remove(zipPath); } catch (e) { /* 临时文件 */ }
+    }
+  },
+
+  /**
+   * 解压运行时包：首选 XPCOM zip reader（不起进程、无引号/执行策略问题），
+   * 失败则退到 Windows 自带的 Expand-Archive —— 这两条任何一条能用，用户就能装上。
+   */
+  async _extractZip(zipPath, dstDir, entries) {
+    try {
+      const reader = this._openZipReader(zipPath);
+      try {
+        const r = await this._extractZipEntries(reader, dstDir, entries);
+        if (r.written.length) return Object.assign({ via: "zipreader" }, r);
+      } finally {
+        try { reader.close(); } catch (e) { /* 已关 */ }
+      }
+    } catch (e) {
+      if (typeof Zotero !== "undefined" && Zotero.debug) {
+        Zotero.debug("[Papilot] zip reader 解压失败，改用 Expand-Archive：" + ((e && e.message) || e));
+      }
+    }
+    await this._extractWithPowerShell(zipPath, dstDir);
+    return { written: entries || [], bad: [], via: "expand-archive" };
+  },
+
+  /** Windows 10+ 自带：Expand-Archive（-LiteralPath 处理空格与中文，单引号转义防注入） */
+  async _extractWithPowerShell(zipPath, dstDir) {
+    const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+    const cmd = "Expand-Archive -LiteralPath " + q(zipPath) + " -DestinationPath " + q(dstDir) + " -Force";
+    const exe = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    exe.initWithPath("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+    const proc = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
+    proc.init(exe);
+    const args = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", cmd];
+    proc.runw(true, args, args.length);        // 阻塞等它做完，后面立刻校验 pythonw.exe
+    if (proc.exitValue !== 0) {
+      throw new Error("Expand-Archive 失败（退出码 " + proc.exitValue + "）");
+    }
+  },
+
   // ---------- 代理 ----------
 
   /**
@@ -436,6 +746,23 @@ var WpsBridge = {
     if (!(await this._exists(this.proxyPath()))) {
       const alive0 = await this._get(`http://127.0.0.1:${this.PROXY_PORT}/__health`, 800);
       return !!alive0.ok;
+    }
+    /* 装了加载项却没有解释器 = 换到没装 Python 的电脑（0.87.0 外机实踩）。
+     * 这种机器的用户确实在用 WPS 集成，值得自动补一次运行时；但只补一次、失败静默
+     * （24h 节流）——离线电脑不该每次启动都卡在下载超时上。 */
+    if (!(await this._exists(this.runtimeExe())) && !(await this._whichPythonw())) {
+      if (await this._autoInstallAllowed()) {
+        try {
+          const rr = await this.installRuntime();
+          if (!rr.ok && typeof Zotero !== "undefined" && Zotero.debug) {
+            Zotero.debug("[Papilot] WPS 运行环境自动安装未完成：" + rr.error);
+          }
+        } catch (e) {
+          if (typeof Zotero !== "undefined" && Zotero.debug) {
+            Zotero.debug("[Papilot] WPS 运行环境自动安装异常：" + ((e && e.message) || e));
+          }
+        }
+      }
     }
     // 装了就走 startProxy：版本不符时它会把旧实例重启掉（覆盖文件对运行中的进程无效）
     const r = await this.startProxy();
@@ -494,7 +821,16 @@ var WpsBridge = {
     }
 
     const py = await this._whichPythonw();
-    if (!py) return { started: false, error: "找不到 pythonw.exe（Papilot Cite 依赖本机 Python 3）" };
+    if (!py) {
+      /* 不要只说"找不到"——这台电脑可能压根没装过 Python（0.87.0 之前外机全卡在这）。
+       * 给出唯一可执行的下一步，文案与设置面板那个按钮同名。 */
+      return {
+        started: false,
+        needRuntime: true,
+        error: "这台电脑没有 Python 运行环境。打开 设置 → 界面与效率 → WPS 集成，"
+          + "点「安装运行环境」即可（约 6MB，一次装好，之后不再依赖系统 Python）",
+      };
+    }
     const file = this.proxyPath();
     if (!(await this._exists(file))) return { started: false, error: "代理还没部署到 " + file };
 

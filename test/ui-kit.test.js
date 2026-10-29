@@ -71,7 +71,11 @@ ok(hexOrRgb.length === 0, '③ 颜色一律走 var(--pp-*)，不写死色值', h
 
 /* ---------------- ④ 控件高度两档 ---------------- */
 function block(sel) {
-  const re = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}');
+  /* 选择器分组跨行书写（`.pp-input,\n.pp-select`）；仓库在 Windows 上是 CRLF，
+   * 而干净 checkout / Linux CI 可能是 LF —— 直接拼 `\n` 会让同一份 CSS 在不同行尾下
+   * 有的机器过、有的机器红（2026-10-29 发 0.85.1 时实踩）。空白一律归一成 \s*。 */
+  const pat = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*');
+  const re = new RegExp(pat + '\\s*\\{([^}]*)\\}');
   const mm = re.exec(noComments);
   return mm ? mm[1] : '';
 }

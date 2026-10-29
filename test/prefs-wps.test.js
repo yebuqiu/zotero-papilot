@@ -57,6 +57,7 @@ class El {
 const IDS = [
   'pp-wps-dot', 'pp-wps-state', 'pp-wps-summary', 'pp-wps-addon', 'pp-wps-reg',
   'pp-wps-trust', 'pp-wps-proxy', 'pp-wps-zotero', 'pp-wps-legacy', 'pp-wps-msg',
+  'pp-wps-runtime', 'pp-wps-runtime-install',
   'pp-wps-detect', 'pp-wps-install', 'pp-wps-proxy-start', 'pp-wps-clean', 'pp-wps-open-addon',
 ];
 
@@ -85,6 +86,12 @@ function baseStatus(over) {
     proxyUpstream: true,
     zotero: true,
     payload: { available: true, dir: 'C:/x', version: '0.2.0' },
+    // 0.87.0：代理要解释器，运行环境也是这张卡的必备项
+    runtime: {
+      present: true, exe: 'C:/AppData/PapilotCite/python/pythonw.exe', version: '3.12.10',
+      installedAt: '2026-10-28T00:00:00.000Z', outdated: false,
+      manifest: { pythonVersion: '3.12.10', bytes: 6368640, sha256: 'a'.repeat(64) },
+    },
     legacy: { dirs: [], publish: false },
   }, over || {});
 }
@@ -93,12 +100,16 @@ function baseStatus(over) {
 async function runPanel(status, opts) {
   opts = opts || {};
   const { nodes, document } = makeDom();
-  const calls = { status: 0, install: 0, startProxy: 0, clean: 0, openDir: [], confirm: 0 };
+  const calls = { status: 0, install: 0, startProxy: 0, clean: 0, openDir: [], confirm: 0, runtime: [] };
   const bridge = {
     async status() { calls.status++; return typeof status === 'function' ? status() : status; },
     async installAddon() {
       calls.install++;
       return opts.installResult || { ok: true, version: '0.2.0', report: ['写入 42 个文件', '已写注册项'] };
+    },
+    async installRuntime(o) {
+      calls.runtime.push(o || {});
+      return opts.runtimeResult || { ok: true, version: '3.12.10', files: 17, shaChecked: true };
     },
     async startProxy() { calls.startProxy++; return opts.startResult || { started: true, already: false }; },
     async cleanupLegacy() { calls.clean++; return opts.cleanResult || { ok: true, removed: ['wps-zotero_1.0.1'] }; },
@@ -159,6 +170,63 @@ async function runPanel(status, opts) {
     includes(nodes['pp-wps-legacy'].textContent, '旧注册项', 'publish.xml 里的旧注册项也算残留');
     ok(nodes['pp-wps-clean'].disabled === false, '有残留时「清理」按钮可用');
     ok(nodes['pp-wps-state'].textContent !== '可用', '有残留时不能报可用');
+  }
+
+  {
+    /* 0.87.0：换到没装 Python 的电脑，代理根本起不来。这张卡必须把「缺运行环境」
+     * 说清楚并给出可点的下一步，而不是让用户在 WPS 里看到「找不到 pythonw.exe」。 */
+    const { nodes } = await runPanel(baseStatus({
+      proxy: false,
+      runtime: { present: false, exe: 'C:/AppData/PapilotCite/python/pythonw.exe', version: '', manifest: { pythonVersion: '3.12.10', bytes: 6368640, sha256: 'a'.repeat(64) } },
+    }));
+    includes(nodes['pp-wps-runtime'].textContent, '未安装', '缺运行环境时直说未安装');
+    includes(nodes['pp-wps-runtime'].textContent, '6.1MB', '把要下载多大告诉用户（6.1MB）');
+    includes(nodes['pp-wps-summary'].textContent, '缺运行环境', '摘要里点名缺运行环境');
+    ok(nodes['pp-wps-state'].textContent !== '可用', '缺运行环境时不能报可用');
+    ok(nodes['pp-wps-runtime-install'].textContent === '安装运行环境', '按钮文案是「安装运行环境」');
+    ok(nodes['pp-wps-runtime-install'].disabled === false, '有清单时按钮可用');
+
+    const done = await runPanel(baseStatus());
+    includes(done.nodes['pp-wps-runtime'].textContent, '已安装 3.12.10', '装好后显示版本');
+    ok(done.nodes['pp-wps-runtime-install'].textContent === '重新安装运行环境', '已装时按钮变「重新安装」');
+
+    const old = await runPanel(baseStatus({
+      runtime: {
+        present: true, exe: 'x', version: '3.12.9', outdated: true,
+        manifest: { pythonVersion: '3.12.10', bytes: 6368640, sha256: 'b'.repeat(64) },
+      },
+    }));
+    includes(old.nodes['pp-wps-runtime'].textContent, '可更新', '版本过期时提示可更新');
+    ok(old.nodes['pp-wps-runtime-install'].textContent === '更新运行环境', '过期时按钮变「更新运行环境」');
+  }
+
+  {
+    // 装完顺手拉代理：用户装它就是想让代理能跑，别让人再点一次
+    const p = await runPanel(baseStatus({ proxy: false, runtime: { present: false, exe: 'x', version: '', manifest: { pythonVersion: '3.12.10', bytes: 6368640, sha256: 'a'.repeat(64) } } }));
+    p.nodes['pp-wps-runtime-install'].dispatch('click');
+    await new Promise((r) => setTimeout(r, 60));
+    ok(p.calls.runtime.length === 1, '点按钮调到 bridge.installRuntime');
+    ok(p.calls.runtime[0].force === false, '未装过时 force=false（正常安装）');
+    ok(p.calls.startProxy >= 1, '装完自动拉起代理');
+    includes(p.msg(), '运行环境已就绪', '成功提示里说就绪');
+    includes(p.msg(), '3.12.10', '提示里带版本号');
+  }
+
+  {
+    const p = await runPanel(baseStatus());
+    p.nodes['pp-wps-runtime-install'].dispatch('click');
+    await new Promise((r) => setTimeout(r, 60));
+    ok(p.calls.runtime[0].force === true, '★ 已装过再点 = 强制重装（否则会被 already 短路）');
+  }
+
+  {
+    const p = await runPanel(baseStatus({
+      runtime: { present: false, exe: 'x', version: '', manifest: { pythonVersion: '3.12.10', bytes: 6368640, sha256: 'a'.repeat(64) } },
+    }), { runtimeResult: { ok: false, error: '下载失败（HTTP 500）' } });
+    p.nodes['pp-wps-runtime-install'].dispatch('click');
+    await new Promise((r) => setTimeout(r, 60));
+    includes(p.msg(), '下载失败', '失败原因要显示出来（不静默）');
+    ok(p.msg().indexOf('已就绪') < 0, '失败时不许说就绪');
   }
 
   {

@@ -161,6 +161,9 @@ NODE_SUITES = [
     ("社群后台配置", "test/community-server.test.js"),
     ("WPS 集成面板", "test/prefs-wps.test.js"),
     ("WPS 载荷安装桥", "test/wps-bundle-install.test.js"),
+    ("WPS 运行环境安装桥", "test/wps-runtime-install.test.js"),
+    # 0.87.0：清单随 xpi 走、zip 部署在服务端；两边单独更新 = 外机下载后校验必失败
+    ("WPS 运行环境清单一致", "test/wps-runtime-manifest.test.js"),
     ("WPS 引文导航", "wps-cite/test/nav.test.js"),
     ("WPS 诊断包插件侧", "wps-cite/test/diag.test.js"),
     ("WPS 引用内核（新）", "wps-cite/test/core.test.js"),

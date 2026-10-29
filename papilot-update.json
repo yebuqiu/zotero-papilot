@@ -3,6 +3,17 @@
     "papilot@dev.local": {
       "updates": [
         {
+          "version": "0.85.1",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.85.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "WPS 集成不再要求电脑自带 Python：设置 → 界面与效率 → WPS 集成 里点「安装运行环境」，自动下载精简版 Python（约 6MB，只放在 Papilot 自己的目录，不影响系统）。修复外机报「启动失败：找不到 pythonw.exe」后整条 WPS 链路不可用的问题。"
+        },
+        {
           "version": "0.85.0",
           "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.85.0.xpi",
           "applications": {
