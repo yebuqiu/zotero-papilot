@@ -86,6 +86,9 @@
   function datasetsCsv() {
     const out = [];
     if (checked("pp-cloud-ds-settings")) out.push("settings");
+    // 0.87.0 双通道：单篇归档与综合对话分开勾选——只想留存综述对话时不必连整库问答一起传
+    if (checked("pp-cloud-ds-chatdocs")) out.push("chatDocs");
+    if (checked("pp-cloud-ds-chatmulti")) out.push("chatMulti");
     if (checked("pp-cloud-ds-chat")) out.push("chatSessions");
     if (checked("pp-cloud-ds-packs")) out.push("packages");
     return out.join(",");
@@ -94,6 +97,8 @@
   function renderDatasets(csv) {
     const set = new Set(String(csv || "").split(",").map((s) => s.trim()).filter(Boolean));
     setChecked("pp-cloud-ds-settings", set.has("settings"));
+    setChecked("pp-cloud-ds-chatdocs", set.has("chatDocs"));
+    setChecked("pp-cloud-ds-chatmulti", set.has("chatMulti"));
     setChecked("pp-cloud-ds-chat", set.has("chatSessions"));
     setChecked("pp-cloud-ds-packs", set.has("packages"));
   }

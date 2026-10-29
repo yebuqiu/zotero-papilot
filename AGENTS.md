@@ -31,7 +31,7 @@ Papilot 是一个 **Zotero 7–10 插件**（浏览器扩展形态，bootstrappe
 
 | 组成 | 说明 | 版本锚点 |
 |---|---|---|
-| **插件本体** | `bootstrap.js` + `chrome/content/**`，Manifest V2 扩展，覆盖阅读助手 / 检索发现 / 笔记卡片 / 批量分析 / 库健康 / 标签状态 / MCP 互操作 / 数据列 / 账号会员等 9 类功能 | `manifest.json` 的 `version`（当前 `0.85.1`） |
+| **插件本体** | `bootstrap.js` + `chrome/content/**`，Manifest V2 扩展，覆盖阅读助手 / 检索发现 / 笔记卡片 / 批量分析 / 库健康 / 标签状态 / MCP 互操作 / 数据列 / 账号会员等 9 类功能 | `manifest.json` 的 `version`（当前 `0.87.0`） |
 | **账号与会员服务端** | **不在本仓库开源**。注册登录、会话、会员/订单/激活码/优惠券、官方 AI 模型网关、管理 API 与网页管理页 | 随私有仓维护（当前 `1.11.1`） |
 
 - 插件 ID：`papilot@dev.local`；兼容 `strict_min_version: "6.999"` → `strict_max_version: "99.*"`。

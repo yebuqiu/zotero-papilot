@@ -1,0 +1,165 @@
+{
+  "$schema": "papilot://lit-review/config/v1",
+  "version": 1,
+  "name": "GLP-1 受体激动剂与 2 型糖尿病心血管结局",
+  "note": "示例配置：字段含义见 docs/文献检索与综述生成-设计方案-2026-10-28.md §11。凭据只写 cred:<name> 引用名，导出时自动脱敏。",
+
+  "sources": {
+    "enabled": ["pubmed", "europepmc", "openalex"],
+    "perSource": {
+      "pubmed": { "pageSize": 100, "maxRecords": 300, "timeoutMs": 25000 },
+      "europepmc": { "pageSize": 100, "maxRecords": 300, "timeoutMs": 20000 },
+      "openalex": { "pageSize": 50, "maxRecords": 300, "timeoutMs": 20000 },
+      "crossref": { "pageSize": 100, "maxRecords": 200, "timeoutMs": 20000 },
+      "arxiv": { "pageSize": 50, "maxRecords": 100, "timeoutMs": 20000 }
+    },
+    "credentials": {
+      "pubmedApiKey": null,
+      "openalexApiKey": null
+    },
+    "mailto": ""
+  },
+
+  "query": {
+    "mode": "topic",
+    "topic": "GLP-1 受体激动剂对 2 型糖尿病患者心血管结局的影响",
+    "concepts": [
+      {
+        "id": "c1",
+        "label": "GLP-1 受体激动剂",
+        "terms": ["GLP-1 receptor agonist", "semaglutide", "liraglutide", "dulaglutide"],
+        "mesh": ["Glucagon-Like Peptide-1 Receptor Agonists"]
+      },
+      {
+        "id": "c2",
+        "label": "心血管结局",
+        "terms": ["cardiovascular outcome", "MACE", "major adverse cardiovascular events"],
+        "mesh": ["Cardiovascular Diseases"]
+      },
+      {
+        "id": "c3",
+        "label": "2 型糖尿病",
+        "terms": ["type 2 diabetes", "T2DM"],
+        "mesh": ["Diabetes Mellitus, Type 2"]
+      }
+    ],
+    "conceptLogic": "AND",
+    "booleanMode": "auto",
+    "customQuery": { "syntax": "pubmed", "expression": "" },
+    "filters": {
+      "dateFrom": "2015-01-01",
+      "dateTo": "",
+      "languages": ["eng", "chi"],
+      "publicationTypes": [
+        "Randomized Controlled Trial",
+        "Meta-Analysis",
+        "Systematic Review",
+        "Observational Study"
+      ],
+      "excludePublicationTypes": ["Editorial", "Comment", "Retraction of Publication"],
+      "hasAbstract": true,
+      "openAccessOnly": false,
+      "species": "human"
+    }
+  },
+
+  "dedupe": {
+    "titleThreshold": 0.92,
+    "keepVersions": true,
+    "preferPublished": true
+  },
+
+  "screening": {
+    "hardFilters": {
+      "minYear": 2015,
+      "requireAbstract": true,
+      "excludeRetracted": true,
+      "minCitations": 0
+    },
+    "minConceptCoverage": 0.5,
+    "weights": {
+      "title": 0.4,
+      "abstract": 0.25,
+      "keyword": 0.15,
+      "recency": 0.1,
+      "evidenceType": 0.1
+    },
+    "thresholds": { "include": 65, "exclude": 30 },
+    "aiReview": {
+      "enabled": true,
+      "maxCandidates": 60,
+      "batchSize": 10,
+      "onFailure": "keep"
+    }
+  },
+
+  "extraction": {
+    "enabled": true,
+    "sourceLevel": "abstract-first",
+    "maxWorks": 60,
+    "maxQuotesPerWork": 3,
+    "batchSize": 6,
+    "fields": [
+      "design",
+      "population",
+      "sampleSize",
+      "intervention",
+      "comparator",
+      "outcomes",
+      "keyFindings",
+      "limitations"
+    ]
+  },
+
+  "writing": {
+    "language": "zh",
+    "citationStyle": "numeric",
+    "outline": {
+      "template": "six-section",
+      "sections": [
+        { "id": "intro", "title": "引言", "budget": 600, "required": true },
+        { "id": "state", "title": "研究现状", "budget": 1200, "required": true },
+        { "id": "findings", "title": "主要发现", "budget": 1500, "required": true },
+        { "id": "debate", "title": "争议与不足", "budget": 900, "required": true },
+        { "id": "conclusion", "title": "结论", "budget": 500, "required": true },
+        { "id": "refs", "title": "参考文献", "budget": 0, "required": true, "generated": true }
+      ]
+    },
+    "outlinePool": 120,
+    "maxEvidencePerSection": 25,
+    "allowInference": true,
+    "markInference": true
+  },
+
+  "verification": {
+    "strictness": "warn",
+    "checks": {
+      "unknownCitation": true,
+      "coverage": true,
+      "numeric": true,
+      "conflict": true,
+      "metadata": true,
+      "repetition": true
+    },
+    "coverageMin": 0.6,
+    "onFail": "annotate"
+  },
+
+  "delivery": {
+    "formats": ["note", "markdown", "csv"],
+    "collection": "auto",
+    "tags": ["Papilot综述", "GLP-1"],
+    "prismaReport": true
+  },
+
+  "budget": {
+    "maxAiCalls": 30,
+    "maxInputTokens": 400000,
+    "onExceed": "stop"
+  },
+
+  "privacy": {
+    "sendAbstractsToAI": true,
+    "storeRawResponses": false
+  }
+}

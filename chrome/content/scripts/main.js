@@ -39,8 +39,12 @@ Zotero.Papilot = {
       translatePane: "TranslatePane", chatFloat: "ChatFloat", skillPacks: "SkillPacks",
       cloudSync: "CloudSync", credVault: "CredVault", wpsBridge: "WpsBridge", community: "Community",
       chatSessions: "ChatSessions", scheduler: "Scheduler", agentMemory: "AgentMemory",
+      // 0.87.0 角色与问答记忆（设置面板 / 左侧栏栏目 / 浮窗共用）
+      aiRoles: "AIRoles", chatMemory: "ChatMemory", aiLogPane: "AILogPane",
+      chatSearch: "ChatSearch", chatPrivacy: "ChatPrivacy", chatSync: "ChatSync",
       metaDoctor: "MetaDoctor", annotationDigest: "AnnotationDigest", searchSubs: "SearchSubs",
       subSources: "SubSources", subsBridge: "SubsBridge", reviewWorkbench: "ReviewWorkbench",
+      litQuery: "LitQuery", litCorpus: "LitCorpus", litAudit: "LitAudit", litReview: "LitReview",
       agentTools: "AgentTools", commandTags: "CommandTags", cnMeta: "CNMeta",
       cnTranslators: "CNTranslators", cnFetch: "CNFetch", cnVerify: "CNVerify", cnAuth: "CNAuth",
       readingState: "ReadingState", noteTemplates: "NoteTemplates", noteTools: "NoteTools",
@@ -315,6 +319,9 @@ Zotero.Papilot = {
       "ai/glossary-packs.js",
       // 0.42.0 标题/摘要译文写回（extra 行级 upsert 纯函数；须在 chat.js 之前，chat 翻译任务消费它）
       "ai/translate-writeback.js",
+      // 0.87.0 AI 角色与场景参数（roles.js）：只依赖 Prefs，必须在 chat.js 之前——
+      // chat.js 的 _systemWith / ask / buildMessages 都读 AIRoles.basePrompt 与 paramsFor
+      "ai/roles.js",
       "ai/chat.js",
       "ai/prompts.js",
       // 0.48.0 Agent 工具层（交互参考 Hermes Agent：任务规划 + 工具调用 + 上下文
@@ -384,6 +391,12 @@ Zotero.Papilot = {
       "features/review-gen.js",
       // 0.53.0 综述工作台（多篇 → 大纲 → 分节草稿；独立窗口）
       "features/review-workbench.js",
+      // 0.86.0 文献检索与综述生成（检索 → 语料 → 筛选 → 六段成稿 → 引用审计）
+      // 顺序即依赖：查询编译 → 语料编排 → 引用审计 → 编排/窗口
+      "features/lit-query.js",
+      "features/lit-corpus.js",
+      "features/lit-audit.js",
+      "features/lit-review.js",
       "features/meta-lint.js",
       // 0.52.0 元数据医生（Crossref 补 DOI/期刊/年份；写操作走审计撤销）
       "features/meta-doctor.js",
@@ -486,6 +499,17 @@ Zotero.Papilot = {
       "panels/ref-pane.js",
       // 0.49.0 浮窗会话持久化（跨重启恢复 + 历史浏览；chat-float 消费）
       "features/chat-sessions.js",
+      // 0.87.0 问答记忆双通道（单篇归档到文章下 / 多篇进【AI 对话记录】；
+      // ai-chat-pane 与 chat-float 共用；须在两者之前加载）
+      "features/chat-memory.js",
+      // 0.87.0 批次 2：对话全文检索（线性扫描，不建索引）+ 记忆隐私分级（排除 / 脱敏 / 上传投影）
+      "features/chat-search.js",
+      "features/chat-privacy.js",
+      // 0.87.0 批次 3：会话级合并（纯函数；cloud-sync 的 chatMerge 分支消费）
+      "features/chat-sync.js",
+      // 0.87.0 左侧栏【AI 对话记录】栏目（挂 #zotero-collections-pane 内嵌折叠区，
+      // 只读 ChatMemory，不改 collection tree 数据模型）
+      "panels/ai-log-pane.js",
       // 0.31.0 AI 问答悬浮窗（可拖动/停靠/分屏；唤起：快捷键/阅读器按钮/右键/划词）
       "panels/chat-float.js",
       // 0.68.1 WPS 集成桥（检测 WPS 加载项/信任/代理；设置面板经 Zotero.Papilot.wpsBridge 访问）
@@ -665,6 +689,13 @@ Zotero.Papilot = {
     }
     // 0.49.0 浮窗会话持久化 + 定时任务（设置面板 prefs-schedule.js 经此访问 Scheduler）
     this.chatSessions = ChatSessions;
+    // 0.87.0 角色库与问答记忆双通道（设置面板 prefs-roles.js / 左侧栏栏目经此访问）
+    this.aiRoles = (typeof AIRoles !== "undefined") ? AIRoles : null;
+    this.chatMemory = (typeof ChatMemory !== "undefined") ? ChatMemory : null;
+    this.chatSearch = (typeof ChatSearch !== "undefined") ? ChatSearch : null;
+    this.chatPrivacy = (typeof ChatPrivacy !== "undefined") ? ChatPrivacy : null;
+    this.chatSync = (typeof ChatSync !== "undefined") ? ChatSync : null;
+    this.aiLogPane = (typeof AILogPane !== "undefined") ? AILogPane : null;
     this.scheduler = Scheduler;
     // 0.51.0 Agent 长期记忆（设置面板 prefs-memory.js / system prompt 注入 / agent-tools 工具）
     this.agentMemory = AgentMemory;
@@ -677,6 +708,11 @@ Zotero.Papilot = {
     // 0.71.0 订阅落地桥（分类 + 原生 RSS；设置面板与排障共用入口）
     this.subsBridge = (typeof SubsBridge !== "undefined") ? SubsBridge : null;
     this.reviewWorkbench = ReviewWorkbench;
+    // 0.86.0 文献检索与综述生成（菜单 / hub / 窗口经此访问）
+    this.litQuery = (typeof LitQuery !== "undefined") ? LitQuery : null;
+    this.litCorpus = (typeof LitCorpus !== "undefined") ? LitCorpus : null;
+    this.litAudit = (typeof LitAudit !== "undefined") ? LitAudit : null;
+    this.litReview = (typeof LitReview !== "undefined") ? LitReview : null;
     // 0.48.0 Agent 工具层 + 命令标签（设置面板 prefs-agent.js 经此访问；
     // 测试与排障同入口）
     this.agentTools = AgentTools;
@@ -910,6 +946,8 @@ Zotero.Papilot = {
           rootURI + "chrome/content/prefs-hotkeys.js",
           // 0.48.0 AI 参数卡片扩展（Agent 工具开关 / System Prompt 预设 / 命令标签管理）
           rootURI + "chrome/content/prefs-agent.js",
+          // 0.87.0 AI 角色与问答记忆（角色库 / 场景参数 / 提示词预览 / 归档开关）
+          rootURI + "chrome/content/prefs-roles.js",
           // 0.48.x 技能商店卡片（已安装列表 / 剪贴板导入 / 目录源）
           rootURI + "chrome/content/prefs-skill.js",
           // 0.49.0 定时任务卡片（研究晨报 / 阅读周报 / 库体检）
@@ -1157,6 +1195,15 @@ Zotero.Papilot = {
       await this._diag("chat float registered");
     } catch (e) {
       await this._diag("chat float FAILED: " + (e && (e.stack || e.message) || e));
+    }
+
+    // 0.87.0 左侧栏【AI 对话记录】：旁挂在 #zotero-collections-pane（不改 collection tree
+    // 数据模型）；必须在 ChatFloat 之后 —— 「继续对话」要调 ChatFloat 的全局 session
+    try {
+      AILogPane.register(id);
+      await this._diag("ai log pane registered");
+    } catch (e) {
+      await this._diag("ai log pane FAILED: " + (e && (e.stack || e.message) || e));
     }
 
     // 规则打标：新条目自动应用的 Notifier（菜单部分已由 Menus 注入）
@@ -1756,8 +1803,11 @@ Zotero.Papilot = {
     try { ReadingState.unregister(); } catch (e) { Zotero.logError(e); }
     try { ReaderPopup.unregister(); } catch (e) { Zotero.logError(e); }
     try { ChatFloat.unregister(); } catch (e) { Zotero.logError(e); }
+    try { AILogPane.unregister(); } catch (e) { Zotero.logError(e); }
     // 0.54.1（审查 P2-13）：卸载时把 1.5s 防抖中的会话写盘刷掉，否则最后一轮问答丢存档
     try { ChatSessions.dispose(); } catch (e) { Zotero.logError(e); }
+    // 0.87.0 双通道记忆的 500ms 防抖写同样要刷盘（fire-and-forget：卸载流程不等 IO）
+    try { if (typeof ChatMemory !== "undefined" && ChatMemory) ChatMemory.flush(); } catch (e) { Zotero.logError(e); }
     try { AIChatPane.unregister(); } catch (e) { Zotero.logError(e); }
     try { GlancePane.unregister(); } catch (e) { Zotero.logError(e); }
     try { TranslatePane.unregister(); } catch (e) { Zotero.logError(e); }

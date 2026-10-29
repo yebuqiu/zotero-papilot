@@ -1358,8 +1358,8 @@ ok('"menuMode", "menuHiddenGroups", "menuQuickItems"' in menus_js,
 for _gid in ["ai", "notes", "citation", "tags", "meta", "cn", "automation", "state"]:
     ok(('id: "%s"' % _gid) in menus_js, "23.6 语义分组注册表含 %s" % _gid)
 _item_reg_src = menus_js.split("GROUPS:")[0]
-ok(_item_reg_src.count("labelKey:") == 56,
-   "23.7 ★ 注册表恰好 56 条命令（实测 %d；0.53.0 +综述工作台；0.61.0 +国标参考文献导出、0.62.0 +Obsidian 导出、0.63.0 +OCR 与笔记工具、0.70.0 +标签管理器；0.36.0 撤 pdf-inline；0.42.0 撤文本双栏、+嵌套标签、+评级组×6；0.43.0 +知网登录；0.43.1 登录类收敛到设置面板，撤 cn-login；0.44.0（实验）+第三方文献源；0.72.4 +组件商店）" % _item_reg_src.count("labelKey:"))
+ok(_item_reg_src.count("labelKey:") == 57,
+   "23.7 ★ 注册表恰好 57 条命令（实测 %d；0.86.0 +检索并生成综述；0.53.0 +综述工作台；0.61.0 +国标参考文献导出、0.62.0 +Obsidian 导出、0.63.0 +OCR 与笔记工具、0.70.0 +标签管理器；0.36.0 撤 pdf-inline；0.42.0 撤文本双栏、+嵌套标签、+评级组×6；0.43.0 +知网登录；0.43.1 登录类收敛到设置面板，撤 cn-login；0.44.0（实验）+第三方文献源；0.72.4 +组件商店）" % _item_reg_src.count("labelKey:"))
 ok("type\", \"radio\"" in menus_js and "ReadingState.getState" in menus_js,
    "23.8 阅读状态为 radio 子菜单并按当前选中条目打点")
 ok('"chrome/content/prefs-menu.js"' in mainjs, "23.9 设置面板注册 prefs-menu.js 脚本")
@@ -2028,12 +2028,12 @@ for _eid in ("pp-fold-expand", "pp-fold-collapse"):
     ok(_eid in xhtml_ids, "31.3 prefs.xhtml 含折叠工具条 #%s" % _eid)
 _FOLD_KEYS = ["account", "cnki", "thirdsrc", "channels", "translate", "aiparams", "skills", "subscriptions", "schedule", "popup",
               "columns", "tagging", "enhance", "uitheme", "pdftheme", "menu", "hotkeys", "cloud", "wps",
-              "glossary", "pdfdual", "mods", "community"]
+              "glossary", "pdfdual", "mods", "community", "airoles"]
 _fold_found = re.findall(r'data-fold="([a-z]+)"', prefs_xhtml)
 ok(sorted(_fold_found) == sorted(_FOLD_KEYS),
-   "31.4 prefs.xhtml 的 23 个折叠分组键齐全（0.48.x 技能商店；0.49.0 定时任务；0.53.0 检索订阅；0.56.0 云同步；0.68.1 WPS 集成；0.72.4 翻译卡拆三；0.73.2 组件管理）→ 实际: %s" % ",".join(sorted(set(_fold_found))))
-ok(prefs_xhtml.count('class="pp-card pp-fold"') == 23,
-   "31.5 折叠卡片共 23 张（0.49.0 定时任务，0.53.0 检索订阅，0.56.0 云同步，0.68.1 WPS 集成，0.72.4 翻译卡拆三，0.73.2 组件管理；不多不少，防止漏包一张）")
+   "31.4 prefs.xhtml 的 24 个折叠分组键齐全（0.48.x 技能商店；0.49.0 定时任务；0.53.0 检索订阅；0.56.0 云同步；0.68.1 WPS 集成；0.72.4 翻译卡拆三；0.73.2 组件管理；0.87.0 角色与问答记忆）→ 实际: %s" % ",".join(sorted(set(_fold_found))))
+ok(prefs_xhtml.count('class="pp-card pp-fold"') == 24,
+   "31.5 折叠卡片共 24 张（0.49.0 定时任务，0.53.0 检索订阅，0.56.0 云同步，0.68.1 WPS 集成，0.72.4 翻译卡拆三，0.73.2 组件管理，0.87.0 角色卡；不多不少，防止漏包一张）")
 ok('pref("extensions.zotero.papilot.prefsFoldOpen", "account");' in prefsdef,
    "31.6 prefs.js 有 prefsFoldOpen 默认值（默认展开账号卡；点过全部收起后写空串，记忆优先）")
 ok("prefsFoldOpen" in _pfold_js and "pp-fold-closed" in _pfold_js,
@@ -2458,7 +2458,7 @@ ok(_chat_js.count("this.windowHistory(history") == 2 and "history.slice(-12)" no
    "40.10 ai/chat.js 历史窗口化（buildMessages/ask 两处均走 windowHistory）")
 _client_js = io.open(os.path.join(ROOT, "chrome", "content", "scripts", "ai", "client.js"),
                      encoding="utf-8").read()
-ok("_sampleParams" in _client_js and _client_js.count("...this._sampleParams()") == 2,
+ok("_sampleParams" in _client_js and _client_js.count("...this._sampleParams(opts && opts.params)") == 2,
    "40.11 AIClient 两处 payload（chat/流式）统一走 _sampleParams（含可选 top_p）")
 PA_JS = os.path.join(ROOT, "chrome", "content", "prefs-agent.js")
 ok(os.path.exists(PA_JS), "40.12 prefs-agent.js 存在（AI 参数卡片扩展脚本）")
@@ -2744,7 +2744,7 @@ ok('pref("extensions.zotero.papilot.reviewWorkbenchEnabled", true)' in prefsdef,
    "46.15 reviewWorkbenchEnabled 默认开")
 ok("test/search-subs.test.js" in _preflight_src and "test/review-workbench.test.js" in _preflight_src,
    "46.16 preflight 注册两个新测试套件")
-ok(prefs_xhtml.count('class="pp-card pp-fold"') == 23, "46.17 折叠卡共 23 张（订阅卡、云同步卡、WPS 集成卡、0.72.4 翻译卡拆三、0.73.2 组件管理已计入）")
+ok(prefs_xhtml.count('class="pp-card pp-fold"') == 24, "46.17 折叠卡共 24 张（订阅卡、云同步卡、WPS 集成卡、0.72.4 翻译卡拆三、0.73.2 组件管理、0.87.0 角色卡已计入）")
 
 # ---------- 47. 0.54.0 审查修复（P0-P2 十项） ----------
 ok('addCondition("note", "contains"' in _at_js,
@@ -3328,8 +3328,8 @@ ok(len(_cat_names) == 8, "52.1 8 个大类标签都带名称与计数（实际 %
 ok([n for n, _ in _cat_names] == ["账号与会员", "AI 能力", "阅读与翻译", "文献获取",
                                  "条目与标签", "界面与效率", "数据与同步", "帮助与社群"],
    "52.2 ★ 分类顺序按使用频率固定（改顺序属于信息架构变更，需同步文档）")
-ok(sum(int(c) for _, c in _cat_names) == 23,
-   "52.3 各大类计数之和 = 23（计数写错会让用户以为丢功能；0.72.4 翻译卡拆三；0.73.2 +组件管理）")
+ok(sum(int(c) for _, c in _cat_names) == 24,
+   "52.3 各大类计数之和 = 24（计数写错会让用户以为丢功能；0.72.4 翻译卡拆三；0.73.2 +组件管理；0.87.0 +角色卡）")
 for _id in ("pp-toolbar", "pp-prefs-search", "pp-prefs-search-clear", "pp-pref-count", "pp-anchor-nav"):
     ok('"%s"' % _id in prefs_xhtml or 'id="%s"' % _id in prefs_xhtml or _id in prefs_xhtml,
        "52.4 设置面板含工具条元素 %s" % _id)
@@ -3354,8 +3354,8 @@ for _sel in (".pp-root .pp-toolbar", ".pp-root .pp-search", ".pp-root .pp-count"
 ok("@media (max-width: 560px)" in prefs_css and "@media (prefers-color-scheme: dark)" in prefs_css,
    "52.11 ★ 响应式（≤560px 单列）与暗色主题两套规则都在")
 ok("prefers-reduced-motion" in prefs_css, "52.12 尊重系统的减少动效偏好")
-ok("class=\"pp-card pp-fold\"" in prefs_xhtml and prefs_xhtml.count('class="pp-card pp-fold"') == 23,
-   "52.13 折叠卡仍为 23 张（重组只搬家；0.68.1 新增 WPS 集成、0.72.4 翻译卡拆三、0.73.2 组件管理仅加卡不改结构）")
+ok("class=\"pp-card pp-fold\"" in prefs_xhtml and prefs_xhtml.count('class="pp-card pp-fold"') == 24,
+   "52.13 折叠卡仍为 24 张（重组只搬家；0.68.1 新增 WPS 集成、0.72.4 翻译卡拆三、0.73.2 组件管理、0.87.0 角色卡仅加卡不改结构）")
 ok(os.path.exists(os.path.join(ROOT, "test", "prefs-fold.test.js")),
    "52.14 折叠/搜索测试套件在库")
 # 0.82.0 联系与社群：单 JSON 真源，离线可用，远程内容按纯文本渲染，二维码按需加载。

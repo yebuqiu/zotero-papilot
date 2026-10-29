@@ -610,8 +610,138 @@ var SubSources = {
     return { status, data: (req && req.response) || null };
   },
 
-  _mailto() {
-    try {
+  /** HTTP 纯文本（0.86.0：PubMed efetch 只返回 XML/文本，没有 JSON 形态） */
+  async _text(url, timeoutMs) {
+    const ms = timeoutMs || 25000;
+    const req = await Promise.race([
+      Zotero.HTTP.request("GET", url, {
+        responseType: "text",
+        timeout: ms,
+        headers: { Accept: "application/xml,text/xml,text/plain", "User-Agent": "Papilot/1.0 (+https://github.com/yebuqiu/zotero-papilot)" },
+      }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("请求超时（" + Math.round(ms / 1000) + "s）")), ms + 1000)),
+    ]);
+    const status = Number(req && req.status) || 0;
+    return { status, text: String((req && req.response) || "") };
+  },
+
+  /**
+   * PubMed 全文摘要版（0.86.0，综述语料专用）：
+   * esummary 只给题录、**没有摘要**，而摘要正是相关性筛选与综述写作的原料，
+   * 所以语料链路改走 efetch XML。解析用定点正则（bootstrap 作用域没有可用 DOMParser，
+   * 见 check-wiring §30.7），字段缺失一律留空，绝不因单篇异常丢整批。
+   */
+  async _pubmedRich(sub, limit, _now, offset, cap) {
+    const term = (sub && sub._q) || this.pubmedTerm(sub);
+    if (!term) throw new Error("PubMed 需要关键词、作者或期刊名（分类对其不适用）");
+    const top = Math.max(1, Math.min(Number(cap) || 50, 300));
+    const n = Math.max(1, Math.min(top, limit));
+    const esearch = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmode=json"
+      + "&sort=pub+date&retmax=" + n + "&retstart=" + Math.max(0, Number(offset) || 0)
+      + "&term=" + encodeURIComponent(term)
+      + (this._mailto() ? "&email=" + encodeURIComponent(this._mailto()) : "");
+    await this._gate("pubmed");
+    const s = await this._json(esearch, 15000);
+    if (s.status !== 200 || !s.data) throw new Error("PubMed esearch HTTP " + (s.status || "无响应"));
+    const ids = (((s.data.esearchresult || {}).idlist) || []).slice(0, n);
+    if (!ids.length) return [];
+    await this._gate("pubmed");
+    const efetch = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&retmode=xml"
+      + "&id=" + ids.join(",")
+      + (this._mailto() ? "&email=" + encodeURIComponent(this._mailto()) : "");
+    const r = await this._text(efetch, 25000);
+    if (r.status !== 200 || !r.text) throw new Error("PubMed efetch HTTP " + (r.status || "无响应"));
+    const rows = this.parsePubmedXml(r.text);
+    if (!rows.length) throw new Error("PubMed 返回内容无法解析（可能被网关改写）");
+    return rows;
+  },
+
+  /** PubMed efetch XML → 统一条目（纯函数，测试用固定样本钉住） */
+  _xmlText(s) {
+    return String(s == null ? "" : s)
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, "\"").replace(/&apos;/g, "'")
+      .replace(/&#x([0-9a-fA-F]+);/g, (m, h) => String.fromCharCode(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (m, d) => String.fromCharCode(Number(d)))
+      .replace(/&amp;/g, "&")
+      .replace(/\s+/g, " ")
+      .trim();
+  },
+
+  parsePubmedXml(xml) {
+    const out = [];
+    const parts = String(xml || "").split("<PubmedArticle>");
+    for (let i = 1; i < parts.length; i++) {
+      try {
+        const body = parts[i].split("</PubmedArticle>")[0];
+        const pmid = this._xmlText((/<PMID[^>]*>([\s\S]*?)<\/PMID>/.exec(body) || [])[1] || "");
+        if (!pmid) continue;
+        const title = this._xmlText((/<ArticleTitle[^>]*>([\s\S]*?)<\/ArticleTitle>/.exec(body) || [])[1] || "");
+        const abs = [];
+        const re = /<AbstractText([^>]*)>([\s\S]*?)<\/AbstractText>/g;
+        let m;
+        while ((m = re.exec(body))) {
+          const label = /Label="([^"]*)"/.exec(m[1]);
+          const txt = this._xmlText(m[2]);
+          if (txt) abs.push(label ? label[1] + ": " + txt : txt);
+        }
+        const authors = [];
+        const are = /<Author\b[^>]*>([\s\S]*?)<\/Author>/g;
+        while ((m = are.exec(body))) {
+          const inner = m[1];
+          const collective = this._xmlText((/<CollectiveName[^>]*>([\s\S]*?)<\/CollectiveName>/.exec(inner) || [])[1] || "");
+          if (collective) { authors.push(collective); continue; }
+          const last = this._xmlText((/<LastName[^>]*>([\s\S]*?)<\/LastName>/.exec(inner) || [])[1] || "");
+          const fore = this._xmlText((/<ForeName[^>]*>([\s\S]*?)<\/ForeName>/.exec(inner) || [])[1] || "");
+          const initials = this._xmlText((/<Initials[^>]*>([\s\S]*?)<\/Initials>/.exec(inner) || [])[1] || "");
+          const name = [last, fore || initials].filter(Boolean).join(" ").trim();
+          if (name) authors.push(name);
+        }
+        const journal = this._xmlText((/<Journal>[\s\S]*?<Title>([\s\S]*?)<\/Title>/.exec(body) || [])[1] || "");
+        const year = (/<PubDate>[\s\S]*?<Year>(\d{4})<\/Year>/.exec(body) || [])[1] || "";
+        const month = (/<PubDate>[\s\S]*?<Month>(\d{1,2})<\/Month>/.exec(body) || [])[1] || "";
+        const volume = this._xmlText((/<Volume>([\s\S]*?)<\/Volume>/.exec(body) || [])[1] || "");
+        const issue = this._xmlText((/<Issue>([\s\S]*?)<\/Issue>/.exec(body) || [])[1] || "");
+        const pages = this._xmlText((/<MedlinePgn>([\s\S]*?)<\/MedlinePgn>/.exec(body) || [])[1] || "");
+        const doi = this._doi(this._xmlText((/<ArticleId[^>]*IdType="doi"[^>]*>([\s\S]*?)<\/ArticleId>/.exec(body) || [])[1] || ""));
+        const ptypes = [];
+        const pre = /<PublicationType[^>]*>([\s\S]*?)<\/PublicationType>/g;
+        while ((m = pre.exec(body))) {
+          const t = this._xmlText(m[1]);
+          if (t) ptypes.push(t);
+        }
+        const absText = abs.join(" ").trim();
+        out.push({
+          source: "pubmed",
+          id: pmid,
+          pmid: pmid,
+          doi: doi,
+          title: title,
+          summary: absText,
+          authors: authors.slice(0, 60),
+          published: year ? (year + "-" + (month ? String(month).padStart(2, "0") : "01") + "-01") : "",
+          url: "https://pubmed.ncbi.nlm.nih.gov/" + pmid + "/",
+          pdfUrl: "",
+          categories: [],
+          venue: journal,
+          issn: "",
+          issnAll: [],
+          citationCount: 0,
+          type: "journal-article",
+          publicationTypes: ptypes,
+          isRetracted: ptypes.some((t) => /^retracted publication$|^retraction of publication$/i.test(t)),
+          language: (this._xmlText((/<Language>([\s\S]*?)<\/Language>/.exec(body) || [])[1] || "") || "").toLowerCase(),
+          volume: volume,
+          issue: issue,
+          pages: pages,
+        });
+      } catch (e) { /* 单篇解析失败跳过 */ }
+    }
+    return out;
+  },
+
+  _mailto() {    try {
       const v = String(Prefs.get("subsMailto", "") || "").trim();
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : "";
     } catch (e) { return ""; }
@@ -627,12 +757,15 @@ var SubSources = {
     catch (e) { return ""; }
   },
 
-  async _arxiv(sub, limit, now) {
+  async _arxiv(sub, limit, now, _offset, cap) {
     if (typeof ArxivFetch === "undefined" || !ArxivFetch || typeof ArxivFetch.search !== "function") {
       throw new Error("arXiv 模块未就绪");
     }
-    const res = await ArxivFetch.search(this.arxivSpec(sub, now), {
-      limit: Math.max(1, Math.min(100, limit)),
+    const top = Math.max(1, Math.min(Number(cap) || 100, 300));
+    // 0.86.0：综述项目可传入预编译 spec（LitQuery.arxivSpec），订阅路径不传则照旧
+    const spec = (sub && sub._arxivSpec) || this.arxivSpec(sub, now);
+    const res = await ArxivFetch.search(spec, {
+      limit: Math.max(1, Math.min(top, limit)),
       sortBy: "submittedDate",
       sortOrder: "descending",
     });
@@ -655,11 +788,14 @@ var SubSources = {
     }));
   },
 
-  async _openalex(sub, limit, now) {
-    const q = this.openAlexQuery(sub);
+  async _openalex(sub, limit, now, offset, cap) {
+    // 0.86.0：综述项目传入预编译自由文本（LitQuery._freeText），订阅路径走原编译
+    const q = (sub && sub._q) || this.openAlexQuery(sub);
     const authors = this.authorsOf(sub);
     const issns = this.issnsOf(sub);
     if (!q && !authors.length && !issns.length) throw new Error("OpenAlex 需要关键词、作者或期刊（分类仅 arXiv 支持）");
+    const top = Math.max(1, Math.min(Number(cap) || 50, 200));
+    const perPage = Math.max(1, Math.min(top, limit));
     const filters = [];
     const from = this.dateFrom(sub, now);
     if (from) filters.push("from_publication_date:" + from);
@@ -676,7 +812,8 @@ var SubSources = {
     // ★ 只有期刊时不能带 search=""（会把 filter 的相关度排序打乱），排序统一按日期倒序
     params.push("filter=" + encodeURIComponent(filters.join(",")));
     params.push("sort=publication_date:desc");
-    params.push("per-page=" + Math.max(1, Math.min(50, limit)));
+    params.push("per-page=" + perPage);
+    if (Number(offset) > 0) params.push("page=" + (Math.floor(Number(offset) / perPage) + 1));
     const mail = this._mailto();
     if (mail) params.push("mailto=" + encodeURIComponent(mail));
     const key = this._oaKey();
@@ -689,11 +826,13 @@ var SubSources = {
     return rows.filter((e) => this.matches(sub, e));
   },
 
-  async _crossref(sub, limit, now) {
-    const q = this.crossrefQuery(sub);
+  async _crossref(sub, limit, now, offset, cap) {
+    const q = (sub && sub._q) || this.crossrefQuery(sub);
     const authors = this.authorsOf(sub);
     const issns = this.issnsOf(sub);
     if (!q && !authors.length && !issns.length) throw new Error("Crossref 需要关键词、作者或期刊（分类仅 arXiv 支持）");
+    const top = Math.max(1, Math.min(Number(cap) || 50, 300));
+    const perPage = Math.max(1, Math.min(top, limit));
     const filters = [];
     const from = this.dateFrom(sub, now);
     if (from) filters.push("from-pub-date:" + from);
@@ -703,7 +842,8 @@ var SubSources = {
     if (q) params.push("query.bibliographic=" + encodeURIComponent(q));
     // Crossref 的作者查询只接受单个名字：用第一个作者缩小集合，其余靠本地 matches() 复核
     if (authors.length) params.push("query.author=" + encodeURIComponent(authors[0]));
-    params.push("rows=" + Math.max(1, Math.min(50, limit)));
+    params.push("rows=" + perPage);
+    if (Number(offset) > 0) params.push("offset=" + Math.floor(Number(offset)));
     params.push("sort=published");
     params.push("order=desc");
     params.push("select=" + encodeURIComponent("DOI,title,author,abstract,published,container-title,URL,type,is-referenced-by-count,volume,issue,page"));
@@ -718,14 +858,15 @@ var SubSources = {
     return rows.filter((e) => this.matches(sub, e));
   },
 
-  async _europepmc(sub, limit, now) {
-    const q = this.europePmcQuery(sub);
+  async _europepmc(sub, limit, now, _offset, cap) {
+    const q = (sub && sub._q) || this.europePmcQuery(sub);
     if (!q) throw new Error("Europe PMC 需要关键词、作者或期刊（分类仅 arXiv 支持）");
+    const top = Math.max(1, Math.min(Number(cap) || 50, 300));
     const params = [
       "query=" + encodeURIComponent(q),
       "format=json",
       "resultType=core",
-      "pageSize=" + Math.max(1, Math.min(50, limit)),
+      "pageSize=" + Math.max(1, Math.min(top, limit)),
       "sort=" + encodeURIComponent("P_PDATE_D desc"),
     ];
     const mail = this._mailto();
@@ -738,12 +879,14 @@ var SubSources = {
     return rows.filter((e) => e.title);
   },
 
-  async _pubmed(sub, limit) {
-    const term = this.pubmedTerm(sub);
+  async _pubmed(sub, limit, _now, offset, cap) {
+    const term = (sub && sub._q) || this.pubmedTerm(sub);
     if (!term) throw new Error("PubMed 需要关键词、作者或期刊名（分类对其不适用）");
-    const n = Math.max(1, Math.min(50, limit));
+    const top = Math.max(1, Math.min(Number(cap) || 50, 300));
+    const n = Math.max(1, Math.min(top, limit));
     const esearch = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmode=json"
-      + "&sort=pub+date&retmax=" + n + "&term=" + encodeURIComponent(term)
+      + "&sort=pub+date&retmax=" + n + "&retstart=" + Math.max(0, Number(offset) || 0)
+      + "&term=" + encodeURIComponent(term)
       + (this._mailto() ? "&email=" + encodeURIComponent(this._mailto()) : "");
     await this._gate("pubmed");
     // 12s（默认 25s 太长）：PubMed 在国内常整段不可达，一个源就吃掉半分钟
@@ -831,6 +974,29 @@ var SubSources = {
    * @param {{limit?:number, now?:Date|number, only?:string[]}} [opts]
    * @returns {Promise<{ok:boolean, entries:Array, bySource:object, reason?:string, partial:boolean}>}
    */
+  /**
+   * 0.86.0：单源单页取数（综述项目的语料抓取用）。
+   * 与 search() 的区别：不做归属校验/去重/冷却判定，只把「源 + 预编译条件 + 页参数」
+   * 交给对应适配器，由调用方决定分页、去重与失败处置。
+   * @param {string} id 源 id
+   * @param {object} sub 条件（可带 _q / _arxivSpec 覆盖编译结果）
+   * @param {{limit?:number, offset?:number, cap?:number, now?:Date}} [opts]
+   * @returns {Promise<Array>} 归一后的条目（各源字段并集）
+   */
+  async searchOne(id, sub, opts) {
+    const o = opts || {};
+    const cap = Math.max(1, Math.min(500, Number(o.cap) || 50));
+    const limit = Math.max(1, Math.min(cap, Number(o.limit) || 20));
+    const offset = Math.max(0, Number(o.offset) || 0);
+    const now = o.now || new Date();
+    if (id === "arxiv") return this._arxiv(sub, limit, now, 0, cap);
+    if (id === "openalex") return this._openalex(sub, limit, now, offset, cap);
+    if (id === "crossref") return this._crossref(sub, limit, now, offset, cap);
+    if (id === "europepmc") return this._europepmc(sub, limit, now, offset, cap);
+    if (id === "pubmed") return this._pubmedRich(sub, limit, now, offset, cap);
+    throw new Error("未知数据源");
+  },
+
   async search(sub, opts) {
     const o = opts || {};
     const sources = (Array.isArray(o.only) && o.only.length ? o.only : this.normalizeSources(sub && sub.sources))

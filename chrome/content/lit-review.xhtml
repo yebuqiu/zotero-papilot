@@ -1,0 +1,197 @@
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright (c) 2026 Cassiuschen -->
+
+<!DOCTYPE window>
+<!-- Papilot · 文献检索与综述生成（Lit Review）独立窗口
+     纪律（同 review-workbench.xhtml，本项目真机踩坑实录）：
+       ① 不写 XML 声明；禁用命名实体（nbsp/copy/mdash…），占位一律 &#160;。
+       ② 顶部 <script> 先于后续 DOM 执行 → lit-review-ui.js 用 boot() +
+          DOMContentLoaded/readyState 双保险，绝不在脚本顶层碰 DOM。
+       ③ 表单控件三保险：html:textarea 一律 no-native="true"；控件显式 appearance:none
+          + 配色（win 平台皮肤会强制透明底 + 蓝渐变 + max-height:25px）；
+          布局只用 html:div 弹性/网格，不依赖 XUL 盒模型排表单。
+       ④ 数据源与检索模式用「切换按钮」而不是 select/checkbox：皮肤对这两类控件
+          的强制样式最多，按钮只需切 class，最稳。
+     窗口参数 {Zotero, Services, api, payload} 经 window.arguments 传入。 -->
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Papilot · 文献检索与综述生成"
+        windowtype="papilot:lit-review"
+        width="1180" height="760"
+        persist="screenX screenY width height sizemode">
+  <!-- 只加载窗口脚本；检索/写作逻辑全部经 window.arguments[0].api 调用
+       （api 的方法在 bootstrap 作用域里定义，能看见 SubSources / AIClient / Notes；
+        在窗口里重新加载那些文件只会拿到一份看不见这些全局的影子副本）。 -->
+  <script src="chrome://papilot/content/lit-review-ui.js"></script>
+
+  <html:style><![CDATA[
+    /* 统一设计令牌（必须首条：ui-tokens 门禁会逐窗口检查） */
+    @import url("chrome://papilot/content/ui-tokens.css");
+
+    #pp-lr-root {
+      --lr-bg:#f6f8fa; --lr-surface:#ffffff; --lr-surface2:#f6f8fa; --lr-border:#d1d9e0;
+      --lr-text:#1f2328; --lr-muted:#59636e; --lr-accent:#0969da; --lr-accent-weak:#ddf4ff;
+      --lr-ok:#1a7f37; --lr-warn:#9a6700; --lr-danger:#cf222e;
+      background:var(--lr-bg); color:var(--lr-text); font:13px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+      padding:0; margin:0; height:100%; overflow:hidden;
+      /* 与 review-workbench 同款：vbox 自身铺满并纵向 flex，滚动容器才有确定高度 */
+      display:flex; flex-direction:column; width:100%;
+    }
+    window { min-width:900px; min-height:560px; }
+    @media (prefers-color-scheme: dark) {
+      #pp-lr-root {
+        --lr-bg:#0d1117; --lr-surface:#161b22; --lr-surface2:#1c2128; --lr-border:#30363d;
+        --lr-text:#e6edf3; --lr-muted:#8b949e; --lr-accent:#4493f8; --lr-accent-weak:#0c2d6b;
+        --lr-ok:#3fb950; --lr-warn:#d29922; --lr-danger:#f85149;
+      }
+    }
+    #pp-lr-root * { box-sizing:border-box; }
+    #pp-lr-root .lr-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; padding:14px 16px 20px; }
+    #pp-lr-root .lr-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    #pp-lr-root .lr-title { font-size:15px; font-weight:600; }
+    #pp-lr-root .lr-sub { color:var(--lr-muted); font-size:12px; flex:1; }
+    #pp-lr-root .lr-card {
+      background:var(--lr-surface); border:1px solid var(--lr-border); border-radius:8px;
+      padding:12px 14px; margin-bottom:12px;
+    }
+    #pp-lr-root .lr-card h3 { margin:0 0 8px; font-size:13px; font-weight:600; }
+    #pp-lr-root .lr-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0; }
+    #pp-lr-root .lr-label { color:var(--lr-muted); font-size:12px; min-width:60px; }
+    #pp-lr-root input, #pp-lr-root textarea, #pp-lr-root button, #pp-lr-root select {
+      appearance:none; -moz-appearance:none; font:inherit; color:var(--lr-text);
+      background:var(--lr-surface2); border:1px solid var(--lr-border); border-radius:6px;
+      padding:5px 8px; outline:none; max-height:none; min-height:24px;
+    }
+    #pp-lr-root input:focus, #pp-lr-root textarea:focus { border-color:var(--lr-accent); box-shadow:0 0 0 3px var(--lr-accent-weak); }
+    #pp-lr-root textarea { width:100%; resize:vertical; line-height:1.5; }
+    #pp-lr-root button { cursor:pointer; background:var(--lr-surface2); }
+    #pp-lr-root button:hover { border-color:var(--lr-accent); }
+    #pp-lr-root button.pp-primary { background:var(--lr-accent); border-color:var(--lr-accent); color:#fff; }
+    #pp-lr-root button.pp-primary:hover { filter:brightness(1.06); }
+    #pp-lr-root button:disabled { opacity:.55; cursor:default; }
+    #pp-lr-root .lr-toggle { padding:4px 10px; font-size:12px; border-radius:999px; }
+    #pp-lr-root .lr-toggle[data-on="1"] { background:var(--lr-accent-weak); border-color:var(--lr-accent); color:var(--lr-accent); font-weight:600; }
+    #pp-lr-root .lr-num { width:86px; }
+    #pp-lr-root .lr-pre {
+      font:12px/1.5 ui-monospace,Consolas,monospace; white-space:pre-wrap; word-break:break-all;
+      background:var(--lr-surface2); border:1px dashed var(--lr-border); border-radius:6px;
+      padding:8px; margin:6px 0 0; max-height:130px; overflow:auto; color:var(--lr-muted);
+    }
+    #pp-lr-root .lr-status { font-size:12px; color:var(--lr-muted); margin-left:4px; }
+    #pp-lr-root .lr-status.ok { color:var(--lr-ok); }
+    #pp-lr-root .lr-status.warn { color:var(--lr-warn); }
+    #pp-lr-root .lr-status.err { color:var(--lr-danger); }
+    #pp-lr-root .lr-tablewrap { max-height:300px; overflow:auto; border:1px solid var(--lr-border); border-radius:6px; }
+    #pp-lr-root table { width:100%; border-collapse:collapse; font-size:12px; }
+    #pp-lr-root th, #pp-lr-root td { text-align:left; padding:5px 7px; border-bottom:1px solid var(--lr-border); vertical-align:top; }
+    #pp-lr-root th { position:sticky; top:0; background:var(--lr-surface2); font-weight:600; z-index:1; }
+    #pp-lr-root tr.inc td { background:rgba(26,127,55,.06); }
+    #pp-lr-root tr.exc td { color:var(--lr-muted); }
+    #pp-lr-root .lr-dec { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--lr-border); }
+    #pp-lr-root .lr-dec[data-d="include"] { color:var(--lr-ok); border-color:var(--lr-ok); }
+    #pp-lr-root .lr-dec[data-d="maybe"] { color:var(--lr-warn); border-color:var(--lr-warn); }
+    #pp-lr-root .lr-dec[data-d="exclude"] { color:var(--lr-danger); border-color:var(--lr-danger); }
+    #pp-lr-root .lr-cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    #pp-lr-root .lr-outline { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+    #pp-lr-root .lr-chip { font-size:12px; padding:3px 9px; border-radius:999px; background:var(--lr-surface2); border:1px solid var(--lr-border); }
+    #pp-lr-root .lr-chip b { font-weight:600; }
+  ]]></html:style>
+
+  <vbox flex="1" id="pp-lr-root">
+    <html:div class="lr-scroll">
+      <html:div class="lr-head">
+        <html:div class="lr-title">文献检索与综述生成</html:div>
+        <html:div class="lr-sub" id="lr-sub">配置检索 → 建语料 → 筛选 → 六段成稿 → 引用审计</html:div>
+        <html:button id="lr-load" type="button">打开项目</html:button>
+      </html:div>
+
+      <html:div class="lr-card">
+        <html:h3>① 检索配置</html:h3>
+        <html:div class="lr-row">
+          <html:span class="lr-label">数据源</html:span>
+          <html:button class="lr-toggle" data-src="pubmed" type="button">PubMed</html:button>
+          <html:button class="lr-toggle" data-src="europepmc" type="button">Europe PMC</html:button>
+          <html:button class="lr-toggle" data-src="openalex" type="button">OpenAlex</html:button>
+          <html:button class="lr-toggle" data-src="crossref" type="button">Crossref</html:button>
+          <html:button class="lr-toggle" data-src="arxiv" type="button">arXiv</html:button>
+        </html:div>
+        <html:div class="lr-row">
+          <html:span class="lr-label">模式</html:span>
+          <html:button class="lr-toggle" data-mode="topic" type="button">主题</html:button>
+          <html:button class="lr-toggle" data-mode="keywords" type="button">关键词</html:button>
+          <html:button class="lr-toggle" data-mode="custom" type="button">自定义检索式</html:button>
+        </html:div>
+        <html:div class="lr-row" style="align-items:flex-start;">
+          <html:span class="lr-label" id="lr-q-label">主题</html:span>
+          <html:textarea id="lr-q" no-native="true" spellcheck="false" rows="3"
+            placeholder="例：GLP-1 受体激动剂对 2 型糖尿病患者心血管结局的影响（主题模式会自动拆概念组）"></html:textarea>
+        </html:div>
+        <html:div class="lr-row">
+          <html:span class="lr-label">每源上限</html:span>
+          <html:input id="lr-max" class="lr-num" type="text" value="100"></html:input>
+          <html:span class="lr-label" style="min-width:auto;">起始年</html:span>
+          <html:input id="lr-year" class="lr-num" type="text" value="2015"></html:input>
+          <html:span class="lr-label" style="min-width:auto;">语言</html:span>
+          <html:input id="lr-lang" class="lr-num" style="width:110px;" type="text" value="eng,chi"></html:input>
+          <html:span class="lr-status" id="lr-cfg-status"></html:span>
+        </html:div>
+        <html:div class="lr-row">
+          <html:button id="lr-try" type="button">试跑 20 条</html:button>
+          <html:button id="lr-build" class="pp-primary" type="button">检索并建语料</html:button>
+          <html:button id="lr-cfg-export" type="button">导出配置</html:button>
+          <html:button id="lr-cfg-import" type="button">导入配置</html:button>
+          <html:span class="lr-status" id="lr-run-status"></html:span>
+        </html:div>
+        <html:pre class="lr-pre" id="lr-q-preview"></html:pre>
+      </html:div>
+
+      <html:div class="lr-card">
+        <html:h3>② 语料与筛选</html:h3>
+        <html:div class="lr-row">
+          <html:span class="lr-status" id="lr-corpus-status">尚未检索</html:span>
+          <html:button id="lr-all-in" type="button">全部纳入</html:button>
+          <html:button id="lr-all-out" type="button">全部排除</html:button>
+          <html:button id="lr-import" type="button">导入 Zotero</html:button>
+          <html:button id="lr-csv" type="button">导出 CSV</html:button>
+        </html:div>
+        <html:div class="lr-tablewrap">
+          <html:table>
+            <html:thead>
+              <html:tr>
+                <html:th style="width:36px;">#</html:th>
+                <html:th>题名</html:th>
+                <html:th style="width:52px;">年</html:th>
+                <html:th style="width:110px;">来源</html:th>
+                <html:th style="width:56px;">分数</html:th>
+                <html:th style="width:86px;">判定</html:th>
+              </html:tr>
+            </html:thead>
+            <html:tbody id="lr-rows">
+              <html:tr><html:td colspan="6" style="color:#59636e;">检索后在此逐条复核；点判定可循环切换 纳入 / 待定 / 排除。</html:td></html:tr>
+            </html:tbody>
+          </html:table>
+        </html:div>
+      </html:div>
+
+      <html:div class="lr-cols">
+        <html:div class="lr-card">
+          <html:h3>③ 六段成稿</html:h3>
+          <html:div class="lr-outline" id="lr-outline"></html:div>
+          <html:div class="lr-row">
+            <html:button id="lr-gen" class="pp-primary" type="button">生成综述草稿</html:button>
+            <html:button id="lr-save-note" type="button">保存为笔记</html:button>
+            <html:button id="lr-save-md" type="button">导出 Markdown</html:button>
+          </html:div>
+          <html:div class="lr-row"><html:span class="lr-status" id="lr-gen-status"></html:span></html:div>
+          <html:textarea id="lr-draft" no-native="true" spellcheck="false" rows="14"
+            placeholder="生成后可在此直接修改；引用编号由程序按首次出现顺序分配。"></html:textarea>
+        </html:div>
+
+        <html:div class="lr-card">
+          <html:h3>④ 引用审计</html:h3>
+          <html:div class="lr-row"><html:span class="lr-status" id="lr-audit-status">尚未生成</html:span></html:div>
+          <html:pre class="lr-pre" id="lr-audit" style="max-height:420px;">生成草稿后，这里列出覆盖率、无法解析的引用、以及「数字找不到出处」的句子。</html:pre>
+        </html:div>
+      </html:div>
+    </html:div>
+  </vbox>
+</window>

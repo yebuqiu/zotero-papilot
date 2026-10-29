@@ -27,7 +27,7 @@
  *
  * 生命周期：register(pluginID) / unregister()。UI 惰性构建：首次唤起才建 DOM。
  */
-/* global Zotero, Services, Prefs, AIClient, AIChat, I18n, Prompts, MdLite, Notes, CommandTags, ChatSessions, AgentTools, Hotkeys, Components */
+/* global Zotero, Services, Prefs, AIClient, AIChat, I18n, Prompts, MdLite, Notes, CommandTags, ChatSessions, AgentTools, Hotkeys, Components, AIRoles, ChatMemory */
 
 var ChatFloat = {
   ROOT_ID: "papilot-chat-float",
@@ -63,6 +63,10 @@ var ChatFloat = {
     histIdx: -1,
     contextItems: [],  // 0.44.0 拖入的上下文条目 itemID 列表（chip；存在时优先于 item）
     _epoch: 0,         // 0.54.x 代际：切条目 / 停止 / 清空时自增，作废在途轮次
+    // 0.87.0 双通道记忆：sid = 本场对话的稳定标识（同一场对话原地更新，
+    // 不再每轮存一份快照）；roleId = 本场对话使用的 AI 角色（空 = 跟随全局默认）。
+    sid: "",
+    roleId: "",
   },
 
   /* ==================== 工具 ==================== */
@@ -138,6 +142,7 @@ var ChatFloat = {
       s.history = [];
       s.inputHistory = [];
       s.histIdx = -1;
+      s.sid = "";   // 换文章 = 换对话，旧 sid 不得复用到新文章的归档条目上
       return hadHistory ? "switched" : "";
     }
     return "";
@@ -166,21 +171,81 @@ var ChatFloat = {
     try { return s.item.getDisplayTitle() || ""; } catch (e) { return ""; }
   },
 
-  /* ==================== 会话持久化（chat-sessions.js） ====================
+  /* ==================== 会话持久化（chat-memory.js 双通道，0.87.0） ====================
+   * 分流口径（唯一真源在 ChatMemory.classify）：
+   *   · 多篇上下文（拖入 ≥2 篇）→【综合对话】；
+   *   · 单篇问答 → 按 libraryID:itemKey 归档到该文章下。
    * 口径：只有「成功轮次写进 history 之后」才落盘；空 history 不落盘，
-   * 因此清空会话 = 内存清空 + 删除最近一条同条目记录，不会留下空壳。
-   * 恢复时机：新建浮窗 entry 时（_ensure → _build 之后）自动续上最近会话。 */
+   * 因此清空会话 = 内存清空 + 删除本场记录，不会留下空壳。
+   * 恢复时机：新建浮窗 entry 时（_ensure → _build 之后）自动续上本场/本文最近一场。 */
 
-  /** 当前会话 → ChatSessions.save（自带防御：模块缺位 / 空历史都安全） */
-  _saveSession() {
+  /** 内容口径的场景：多篇 → multi，有文章 → single，都没有 → multi（自由问答） */
+  _memoryScene() {
+    if (this._chipItems().length >= 2) return "multi";
+    return this.session.item ? "single" : "multi";
+  },
+
+  /** 参数场景：Agent 模式单列一档（工具决策轮通常要更低温度），其余跟随内容口径 */
+  _paramScene() {
+    return this._agentReady() ? "agent" : this._memoryScene();
+  },
+
+  /** 本场对话的角色 id（会话级优先，非法值回落全局默认） */
+  _roleId() {
+    const r = (this.session && this.session.roleId) ? String(this.session.roleId) : "";
+    if (r && typeof AIRoles !== "undefined" && AIRoles && AIRoles.get(r)) return r;
+    return "";
+  },
+
+  /** 当前场景采样参数（单一真源：AIRoles.paramsFor；模块缺位 → 交给 AIClient 默认） */
+  _sampleParams() {
     try {
+      if (typeof AIRoles === "undefined" || !AIRoles) return undefined;
+      return AIRoles.sampleFor(this._paramScene(), this._roleId());
+    } catch (e) { return undefined; }
+  },
+
+  /** 当前场景的历史窗口轮数（角色 / 场景覆盖可改；坏值回落全局 pref） */
+  _historyRounds() {
+    try {
+      if (typeof AIRoles !== "undefined" && AIRoles) {
+        const p = AIRoles.paramsFor(this._paramScene(), this._roleId());
+        if (p && p.historyRounds) return p.historyRounds;
+      }
+    } catch (e) { /* ignore */ }
+    try { return Number(Prefs.get("aiHistoryRounds", 6)) || 6; } catch (e) { return 6; }
+  },
+
+  /** 当前会话 → ChatMemory.save；模块缺位时回退旧的 ChatSessions（不丢记录） */
+  _saveSession() {
+    const s = this.session;
+    if (!s || !Array.isArray(s.history) || !s.history.length) return null;
+    const chips = this._chipItems().map((it) => it.id);
+    try {
+      if (typeof ChatMemory !== "undefined" && ChatMemory && ChatMemory.save) {
+        const saved = ChatMemory.save({
+          sid: s.sid,
+          item: s.item,
+          chips,
+          history: s.history,
+          roleId: this._roleId(),
+        });
+        if (saved) {
+          s.sid = saved.id;
+          // 自己刚问完的那一场不该显示成「未读」（左栏小圆点只标别人/别的设备新增的）
+          try { if (ChatMemory.markSeen) ChatMemory.markSeen(saved.id); } catch (e) { /* ignore */ }
+          // 可选：同步成该文献下的一条子笔记（pref chatArchiveNote，默认关；失败静默）
+          if (saved.kind === ChatMemory.KIND_DOC && s.item && ChatMemory.archiveToNote) {
+            ChatMemory.archiveToNote(s.item, saved.entry).catch(() => {});
+          }
+          return saved;
+        }
+      }
       if (typeof ChatSessions === "undefined" || !ChatSessions || !ChatSessions.save) return null;
-      const s = this.session;
-      if (!s || !Array.isArray(s.history) || !s.history.length) return null;
       return ChatSessions.save({
         itemID: s.item && s.item.id ? s.item.id : 0,
         history: s.history,
-        chips: this._chipItems().map((it) => it.id),
+        chips,
       });
     } catch (e) {
       this._err(e);
@@ -188,12 +253,18 @@ var ChatFloat = {
     }
   },
 
-  /** 把一条存档灌回内存会话并重绘（chips 按 itemID 重新解析，失效的丢弃） */
+  /**
+   * 把一条存档灌回内存会话并重绘。
+   * 兼容三种入参：ChatMemory 的 {doc, session}、ChatMemory 的 session、旧 ChatSessions 条目。
+   * chips 分两种：doc 通道是 itemID 数组，multi 通道是 {key,title}（跨机 itemID 会变，
+   * 只能靠 key 重新解析；解析不到的直接丢弃，不阻塞恢复）。
+   */
   _applySession(rec, entry) {
     const s = this.session;
-    if (!rec || !Array.isArray(rec.history) || !rec.history.length) return false;
+    const ses = (rec && rec.session) ? rec.session : rec;
+    if (!ses || !Array.isArray(ses.history) || !ses.history.length) return false;
     const history = [];
-    for (const h of rec.history) {
+    for (const h of ses.history) {
       if (!h || (h.role !== "user" && h.role !== "assistant" && h.role !== "system")) continue;
       if (h.content == null) continue;
       history.push({ role: h.role, content: String(h.content) });
@@ -201,12 +272,20 @@ var ChatFloat = {
     if (!history.length) return false;
     s.history = history;
     const ids = [];
-    for (const id of (Array.isArray(rec.chips) ? rec.chips : [])) {
+    for (const id of (Array.isArray(ses.chips) ? ses.chips : [])) {
       if (ids.length >= this.CHIP_MAX) break;
       if (this._resolveChipItem(id)) ids.push(Number(id));
     }
+    for (const ref of (Array.isArray(ses.chipsRef) ? ses.chipsRef : [])) {
+      if (ids.length >= this.CHIP_MAX) break;
+      const it = (typeof ChatMemory !== "undefined" && ChatMemory && ChatMemory.itemForDocKey)
+        ? ChatMemory.itemForDocKey(ref && ref.key) : null;
+      if (it && this._resolveChipItem(it.id) && ids.indexOf(it.id) < 0) ids.push(it.id);
+    }
     s.contextItems = ids;
     s.histIdx = -1;
+    s.sid = String(ses.id || "");
+    s.roleId = String(ses.roleId || "");
     if (entry) {
       try { this._renderHistory(entry); } catch (e) { /* ignore */ }
       try { this._renderCtxChips(entry); } catch (e) { /* ignore */ }
@@ -217,15 +296,23 @@ var ChatFloat = {
   /**
    * 新建 entry 时自动恢复：
    *   已有上下文 chip → 不动（用户本轮显式拖了条目）
-   *   已有内存历史 → 不动；否则先取同条目最近一条，再退全局最近一条
+   *   已有内存历史 → 不动；否则先取本文最近一场（单篇通道），再退综合对话最近一场。
    * 输入框内容一概不动（用户可能已先输入）。
    */
   _restoreSession(entry) {
     try {
-      if (typeof ChatSessions === "undefined" || !ChatSessions) return false;
       const s = this.session;
       if (this._chipItems().length) return false;
       if (Array.isArray(s.history) && s.history.length) return false;
+
+      if (typeof ChatMemory !== "undefined" && ChatMemory) {
+        const found = s.item ? ChatMemory.latestForItem(s.item) : null;
+        if (found && this._applySession(found, entry)) return true;
+        const m = ChatMemory.latestMulti();
+        return m ? this._applySession(m, entry) : false;
+      }
+
+      if (typeof ChatSessions === "undefined" || !ChatSessions) return false;
       const itemID = s.item && s.item.id ? s.item.id : 0;
       let rec = itemID ? ChatSessions.latestForItem(itemID) : null;
       if (!rec) rec = ChatSessions.latest();
@@ -236,16 +323,38 @@ var ChatFloat = {
     }
   },
 
-  /** 删除当前条目对应的存档（同一对话可能有多份快照 → 按 item 清干净） */
+  /**
+   * 删除当前这场对话的存档。
+   * 有 sid 时精确删本场（同文章的其他对话保留——这是 0.87.0 相对旧「每轮一快照」的关键改进）；
+   * 无 sid（旧通道 / 刚打开还没落盘）时退化为「删该文章最近一场」。
+   */
   _forgetSavedSession() {
     try {
-      if (typeof ChatSessions === "undefined" || !ChatSessions || !ChatSessions.remove) return false;
       const s = this.session;
       const itemID = s.item && s.item.id ? s.item.id : 0;
+
+      if (typeof ChatMemory !== "undefined" && ChatMemory) {
+        const kind = (this._chipItems().length >= 2 || !s.item)
+          ? ChatMemory.KIND_MULTI : ChatMemory.KIND_DOC;
+        const key = s.item ? ChatMemory.docKeyOf(s.item) : "";
+        // 有 sid 时两条通道都试一遍：删不准比删不掉更糟（sid 全局唯一，命中即本场）
+        if (s.sid) {
+          const okDoc = key ? ChatMemory.removeSession(ChatMemory.KIND_DOC, key, s.sid) : false;
+          const okMulti = ChatMemory.removeSession(ChatMemory.KIND_MULTI, "", s.sid);
+          return okDoc || okMulti;
+        }
+        if (kind === ChatMemory.KIND_DOC && key) {
+          const found = ChatMemory.latestForItem(s.item);
+          if (found) return ChatMemory.removeSession(kind, key, found.session.id);
+        }
+        const m = ChatMemory.latestMulti();
+        return m ? ChatMemory.removeSession(ChatMemory.KIND_MULTI, "", m.id) : false;
+      }
+
+      if (typeof ChatSessions === "undefined" || !ChatSessions || !ChatSessions.remove) return false;
       let removed = false;
       if (itemID) {
-        // 每轮成功问答都会留一份快照（save 不传 id），只删最近一条会让旧快照
-        // 在下次打开浮窗时「复活」，因此按条目逐条清。
+        // 旧通道：每轮一份快照，必须按条目逐条清，否则旧快照会「复活」
         for (let i = 0; i <= ChatSessions.MAX_SESSIONS; i++) {
           const rec = ChatSessions.latestForItem(itemID);
           if (!rec || !ChatSessions.remove(rec.id)) break;
@@ -253,7 +362,6 @@ var ChatFloat = {
         }
         return removed;
       }
-      // 无锁定条目（纯 chip 会话）只能清全局最近一条
       const rec = ChatSessions.latest();
       return rec ? ChatSessions.remove(rec.id) : false;
     } catch (e) {
@@ -261,15 +369,16 @@ var ChatFloat = {
     }
   },
 
-  /** 清空会话：内存 + 存档（save 会跳过空 history，故显式 remove 最近一条） */
+  /** 清空会话：内存 + 存档（先按 sid 删本场，再清空；空 history 不落盘） */
   _clearHistory(entry) {
     const s = this.session;
     // 0.54.x（审查 P1-6）：生成中清空 = 先停再清，避免在途回答清空后又写回来
     if (s.busy || s.handle) this._abortInFlight();
+    this._forgetSavedSession();
     s.history = [];
     s.inputHistory = [];
     s.histIdx = -1;
-    this._forgetSavedSession();
+    s.sid = "";
     if (entry) {
       try { this.flushRender(entry); } catch (e) { /* ignore */ }
       try { this._renderHistory(entry); } catch (e) { /* ignore */ }
@@ -474,7 +583,11 @@ var ChatFloat = {
         ? `${head}\n（${kind}）\n${body}`
         : `${head}\n（${zh ? "仅题录，无全文/摘要" : "metadata only"}）`);
     }
-    const sys = (Prefs.get("aiSystemPrompt", "") || "") +
+    // 0.87.0 角色：全局 aiSystemPrompt 与角色提示词按 aiRolePromptMode 合并（默认追加）
+    const base = (typeof AIRoles !== "undefined" && AIRoles)
+      ? AIRoles.basePrompt("multi", this._roleId())
+      : (Prefs.get("aiSystemPrompt", "") || "");
+    const sys = base +
       (() => {
         // 0.49.0 研究者画像：与 ai/chat.js._systemWith 同款注入（多 chip 路径）
         let p = "";
@@ -500,7 +613,7 @@ var ChatFloat = {
           "cite sources as 文献 n; separate your inference from the source text.\n\n") +
       blocks.join("\n\n----\n\n");
     const messages = [{ role: "system", content: sys }];
-    messages.push(...AIChat.windowHistory(this.session.history, Prefs.get("aiHistoryRounds", 6)));
+    messages.push(...AIChat.windowHistory(this.session.history, this._historyRounds()));
     messages.push({ role: "user", content: question });
     return messages;
   },
@@ -766,7 +879,8 @@ var ChatFloat = {
         messages = await this._buildChipsMessages(chipItems, question);
       } else {
         const fullText = await AIChat.getFullText(s.item);
-        messages = await AIChat.buildMessages(s.item, question, s.history, fullText || undefined);
+        messages = await AIChat.buildMessages(s.item, question, s.history, fullText || undefined,
+          { scene: "single", roleId: this._roleId() });
       }
       if (this._isStaleTurn(s, epoch, turnItemID)) {
         if (ui.onAbort) ui.onAbort();
@@ -774,6 +888,8 @@ var ChatFloat = {
       }
 
       let acc = "";
+      // 0.87.0 角色与场景参数：本轮采样参数（温度 / max_tokens / top_p）统一由 AIRoles 解析
+      const sampleOpts = { params: this._sampleParams() };
       const useStream = Prefs.get("readerPopupStream", true) && AIClient.chatStream;
       // 0.48.0 Agent 模式（交互参考 Hermes Agent）：AI 可多轮调用工具（检索库 /
       // 读全文 / 加笔记 / 打标签），任务先规划后执行，过程在 UI 以系统气泡呈现；
@@ -785,11 +901,11 @@ var ChatFloat = {
           if (this._isStaleTurn(s, epoch, turnItemID)) return; // 停不掉的流也别污染新会话
           acc += chunk;
           if (ui.onDelta) ui.onDelta(acc);
-        });
+        }, sampleOpts);
         s.handle = handle;
         acc = await handle.promise;
       } else {
-        acc = await AIClient.chat(messages);
+        acc = await AIClient.chat(messages, sampleOpts);
       }
       // 旧会话的答案绝不能写进新会话：落盘 / onDone 之前再校验一次
       if (this._isStaleTurn(s, epoch, turnItemID)) {
@@ -904,7 +1020,11 @@ var ChatFloat = {
       maxSteps,
       callLLM: async (msgs) => {
         // 第 maxSteps+1 次调用是循环的收敛轮（不再允许工具调用）→ 不路由
-        const opts = (decisionModel && llmCalls < maxSteps) ? { model: decisionModel } : null;
+        // 0.87.0：采样参数按 agent 场景解析（工具 JSON 需要更稳定的输出）
+        const opts = Object.assign(
+          { params: this._sampleParams() },
+          (decisionModel && llmCalls < maxSteps) ? { model: decisionModel } : null
+        );
         llmCalls++;
         if (useStream) {
           const handle = AIClient.chatStream(msgs, () => {
@@ -1081,6 +1201,25 @@ var ChatFloat = {
     head.appendChild(icon);
     head.appendChild(titleEl);
 
+    // ---- 角色 Pill（0.87.0 批次 2）----
+    // 位置：紧贴标题右侧、窗口按钮之前。宽度不足时**先裁 short 文字、保留单字 badge**
+    // （badge 有底色，是唯一「扫一眼就知道现在是谁」的信息，不能先丢它）。
+    // data-no-drag：标题栏整体是拖动手柄，不挡住的话点一次 Pill 就变成拖窗。
+    const rolePill = this._h(doc, "button", {
+      type: "button", "data-no-drag": "1", class: "pp-cf-role",
+      title: I18n.isZh ? "切换 AI 角色（本场对话生效）" : "Switch AI role for this chat",
+      style: "flex:0 1 auto;display:inline-flex;align-items:center;gap:3px;height:20px;" +
+        "min-width:0;max-width:86px;padding:0 6px 0 3px;border-radius:10px;" +
+        "border:1px solid transparent;background:var(--fill-quinary,rgba(128,128,128,.12));" +
+        "color:inherit;font-size:11px;line-height:1;cursor:pointer;overflow:hidden;",
+    });
+    for (const evt of ["pointerdown", "mousedown", "dblclick"]) {
+      rolePill.addEventListener(evt, (ev) => {
+        try { ev.stopPropagation(); } catch (e) { /* ignore */ }
+      });
+    }
+    head.appendChild(rolePill);
+
     const mkHeadBtn = (label, tip, css) => {
       const b = this._h(doc, "button", {
         type: "button", title: tip,
@@ -1159,6 +1298,11 @@ var ChatFloat = {
         "background:linear-gradient(135deg,transparent 50%,var(--fill-tertiary,rgba(128,128,128,.5)) 50%);",
     });
 
+    rolePill.addEventListener("click", (ev) => {
+      try { ev.stopPropagation(); } catch (e) { /* ignore */ }
+      try { this._pickRole(this._wins.get(win)); } catch (e) { /* ignore */ }
+    });
+
     root.appendChild(head);
     root.appendChild(msgs);
     root.appendChild(chips);
@@ -1169,7 +1313,7 @@ var ChatFloat = {
 
     const entry = {
       win, root, grip,
-      refs: { head, titleEl, undockBtn, dockLBtn, dockRBtn, opBtn, popBtn, closeBtn,
+      refs: { head, titleEl, rolePill, undockBtn, dockLBtn, dockRBtn, opBtn, popBtn, closeBtn,
         msgs, chips, ctxChips, input, sendBtn, saveBtn, clearBtn },
       geo: this._restoreGeo(),
     };
@@ -1280,6 +1424,98 @@ var ChatFloat = {
   },
 
   /**
+   * 刷新标题栏的角色 Pill。视觉 = [单字 badge（带角色色）] + 简称。
+   * 简称可能被裁（max-width），badge 永远在——窄窗下仍能一眼看出当前角色。
+   */
+  _renderRolePill(entry) {
+    const pill = entry && entry.refs && entry.refs.rolePill;
+    if (!pill) return;
+    const doc = pill.ownerDocument;
+    let d = { short: "严谨", badge: "谨", accent: "#2d6cdf", name: "" };
+    try {
+      if (typeof AIRoles !== "undefined" && AIRoles && AIRoles.displayOf) {
+        d = AIRoles.displayOf(this._roleId());
+      }
+    } catch (e) { /* 用默认展示 */ }
+    while (pill.firstChild) pill.removeChild(pill.firstChild);
+
+    const badge = this._h(doc, "span", {
+      style: "flex:none;display:inline-flex;align-items:center;justify-content:center;" +
+        "width:15px;height:15px;border-radius:50%;font-size:10px;font-weight:700;line-height:1;" +
+        "color:#fff;background:" + d.accent + ";",
+    }, d.badge);
+    const short = this._h(doc, "span", {
+      style: "min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;",
+    }, d.short);
+    pill.appendChild(badge);
+    pill.appendChild(short);
+    pill.title = (I18n.isZh ? "AI 角色：" : "AI role: ") + (d.name || d.short) +
+      (I18n.isZh ? "（点击切换，本场对话生效）" : " (click to switch)");
+  },
+
+  /**
+   * 角色选择（/role）：优先原生下拉框，拿不到对话框能力时退化为文本清单。
+   * 只改**本场对话**的 roleId（不写全局 aiActiveRole）——一次实验性切换不该污染
+   * 之后所有问答；想改默认角色请到设置面板。
+   */
+  _pickRole(entry) {
+    const s = this.session;
+    if (typeof AIRoles === "undefined" || !AIRoles) {
+      this._appendBubble(entry, "sys", "角色模块不可用", "#c0392b");
+      return;
+    }
+    const roles = AIRoles.all();
+    if (!roles.length) {
+      this._appendBubble(entry, "sys", "没有可用角色", "#c0392b");
+      return;
+    }
+    const globalId = AIRoles.activeId();
+    const curId = this._roleId() || globalId;
+    let cur = 0;
+    for (let i = 0; i < roles.length; i++) if (roles[i].id === curId) { cur = i; break; }
+    const names = roles.map((r) => r.name + (r.id === globalId ? "（默认）" : ""));
+
+    let picked = -1;
+    try {
+      const win = Zotero.getMainWindow();
+      const sel = { value: cur };
+      const title = "Papilot · 选择 AI 角色";
+      const text = I18n.isZh ? "本场对话使用哪个角色？" : "Which role for this conversation?";
+      let ok = false;
+      try {
+        // 旧签名带 count（FF/Zotero 早期），新签名不带；两种都试一次
+        ok = Services.prompt.select(win, title, text, names.length, names, sel);
+      } catch (e) {
+        ok = Services.prompt.select(win, title, text, names, sel);
+      }
+      picked = ok ? Number(sel.value) : -1;
+    } catch (e) { picked = -1; }
+
+    if (picked < 0 || !roles[picked]) {
+      this._appendBubble(entry, "sys",
+        (I18n.isZh ? "当前可选角色：\n" : "Available roles:\n") +
+        roles.map((r) => "· " + r.name + "（" + r.id + "）" +
+          (r.id === curId ? (I18n.isZh ? " ← 本场" : " ← current") : "")).join("\n") +
+        (I18n.isZh ? "\n\n角色设定与参数在「设置 → AI 角色与参数」里编辑。"
+          : "\n\nEdit roles in Settings → AI Roles."),
+        "#0d9488");
+      return;
+    }
+    const role = roles[picked];
+    s.roleId = role.id;
+    let params = null;
+    try { params = AIRoles.paramsFor(this._paramScene(), role.id); } catch (e) { params = null; }
+    const pText = params
+      ? (" · temp " + params.temperature + " · max_tokens " + params.maxTokens +
+        (params.topP === "" ? "" : (" · top_p " + params.topP)))
+      : "";
+    this._appendBubble(entry, "sys",
+      (I18n.isZh ? "本场对话已切换为「" : "Role switched to \"") + role.name + "」" + pText,
+      "#0d9488");
+    try { this._renderRolePill(entry); } catch (e) { /* ignore */ }
+  },
+
+  /**
    * 「/」命令清单（浮窗输入框）：会话操作 + Agent 开关 + Prompt 标签直达。
    * SlashCommands 执行前会清空输入框；「发送类」命令在 run 里回填输入再 _doSend。
    */
@@ -1314,49 +1550,72 @@ var ChatFloat = {
           self._appendBubble(entry, "sys",
             list || I18n.t("agentNoTools"), "#0d9488");
         } },
-      // 会话持久化：/history 直接续上最近一条；/sessions 只读列出定位用
-      { id: "history", title: "恢复历史会话（最近一条）", hint: "session",
+      // 会话持久化：/history 直接续上最近一场（本文优先，再退综合对话）
+      { id: "history", title: "恢复历史会话（本场/本文最近一场）", hint: "session",
         run() {
-          if (typeof ChatSessions === "undefined" || !ChatSessions) {
-            self._appendBubble(entry, "sys", "会话持久化不可用", "#c0392b");
-            return;
+          let found = null;
+          if (typeof ChatMemory !== "undefined" && ChatMemory) {
+            found = s.item ? ChatMemory.latestForItem(s.item) : null;
+            if (!found) {
+              const m = ChatMemory.latestMulti();
+              if (m) found = { doc: null, session: m };
+            }
           }
-          const itemID = s.item && s.item.id ? s.item.id : 0;
-          const rec = (itemID ? ChatSessions.latestForItem(itemID) : null) || ChatSessions.latest();
-          if (!rec) {
+          if (!found) {
+            if (typeof ChatSessions !== "undefined" && ChatSessions) {
+              const itemID = s.item && s.item.id ? s.item.id : 0;
+              const rec = (itemID ? ChatSessions.latestForItem(itemID) : null) || ChatSessions.latest();
+              if (rec) found = rec;
+            }
+          }
+          if (!found) {
             self._appendBubble(entry, "sys", "还没有可恢复的历史会话", "#888");
             return;
           }
-          if (!self._applySession(rec, entry)) {
+          if (!self._applySession(found, entry)) {
             self._appendBubble(entry, "sys", "该会话没有可恢复的内容", "#888");
             return;
           }
+          const ses = found.session || found;
           self._appendBubble(entry, "sys",
-            "已恢复最近会话「" + (rec.title || "") + "」；更早的可用 /sessions 查看", "#0d9488");
+            "已恢复「" + (ses.title || "历史会话") + "」；更多记录见左侧栏【AI 对话记录】", "#0d9488");
         } },
-      { id: "sessions", title: "查看最近 10 条历史会话", hint: "session",
+      { id: "sessions", title: "查看本文 / 综合对话记录", hint: "session",
         run() {
-          let rows = [];
-          try {
-            rows = (typeof ChatSessions !== "undefined" && ChatSessions)
-              ? ChatSessions.list(10) : [];
-          } catch (e) { rows = []; }
-          if (!rows.length) {
+          const lines = [];
+          if (typeof ChatMemory !== "undefined" && ChatMemory) {
+            if (s.item) {
+              const doc = ChatMemory.getDoc(ChatMemory.docKeyOf(s.item));
+              if (doc && doc.sessions.length) {
+                lines.push(I18n.isZh ? "【本文对话】" : "[This paper]");
+                doc.sessions.slice(0, 10).forEach((x, i) => {
+                  lines.push("  " + (i + 1) + ". " + (x.title || "(无标题)") +
+                    " · " + self._relTime(x.ts) + " · " + x.count +
+                    (I18n.isZh ? " 条" : " msgs"));
+                });
+              }
+            }
+            const multi = ChatMemory.listMulti(10);
+            if (multi.length) {
+              lines.push(I18n.isZh ? "【综合对话】" : "[Multi-paper]");
+              multi.forEach((x, i) => {
+                lines.push("  " + (i + 1) + ". " + (x.title || "(无标题)") +
+                  " · " + self._relTime(x.ts) + " · " + x.count +
+                  (I18n.isZh ? " 条" : " msgs"));
+              });
+            }
+          }
+          if (!lines.length) {
             self._appendBubble(entry, "sys", "还没有历史会话", "#888");
             return;
           }
-          const lines = rows.map((r, i) =>
-            (i + 1) + ". " + (r.title || "(无标题)") +
-            " · " + self._relTime(r.ts) +
-            " · " + r.count + (I18n.isZh ? " 条" : " msgs") +
-            " · " + String(r.id).slice(0, 8)
-          );
           self._appendBubble(entry, "sys",
-            (I18n.isZh ? "最近会话（最新在前）：\n" : "Recent sessions:\n") +
-            lines.join("\n") +
-            (I18n.isZh ? "\n\n输入 /history 恢复最近一条。" : "\n\nType /history to restore the latest."),
+            (I18n.isZh ? "对话记录（最新在前）：\n" : "Sessions (newest first):\n") + lines.join("\n") +
+            (I18n.isZh ? "\n\n输入 /history 恢复最近一场。" : "\n\nType /history to restore the latest."),
             "#0d9488");
         } },
+      { id: "role", title: "切换本场对话的 AI 角色（角色设定 / 参数在设置面板编辑）", hint: "role",
+        run() { self._pickRole(entry); } },
       { id: "distill", title: "沉淀为命令标签（把最近一个问题保存为标签）", hint: "tag",
         run() { self._distillLastTask(entry); } },
     ];
@@ -1912,6 +2171,7 @@ var ChatFloat = {
       const entry = this._ensure(win);
       const s = this.session;
       entry.refs.titleEl.textContent = this._itemTitle() || I18n.t("chatFloatTitle");
+      try { this._renderRolePill(entry); } catch (e) { /* ignore */ }
       entry.refs.titleEl.setAttribute("title",
         s.item ? this._itemTitle() : I18n.t("chatFloatNoItem"));
       this._renderHistory(entry);
@@ -2327,6 +2587,7 @@ var ChatFloat = {
     this.session = {
       item: null, history: [], busy: false, handle: null,
       inputHistory: [], histIdx: -1, contextItems: [], _epoch: 0,
+      sid: "", roleId: "",
     };
   },
 };

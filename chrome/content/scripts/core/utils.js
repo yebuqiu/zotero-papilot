@@ -399,6 +399,8 @@ var I18n = (() => {
 
     menuAnnotDigest: zh ? "标注→论点速记（AI 整理为笔记）" : "Annotation → Argument Digest (AI)",
     menuReviewWorkbench: zh ? "综述工作台（多篇 → 大纲 → 分节草稿）…" : "Review Workbench (outline → sections)…",
+    menuLitReview: zh ? "检索并生成综述（PubMed 等五源 → 六段草稿）…" : "Search & Synthesize (5 sources → six-section draft)…",
+    menuLitReviewDisabled: zh ? "文献检索与综述生成已在设置中关闭" : "Search & Synthesize is disabled in settings",
     menuReviewWorkbenchDisabled: zh ? "综述工作台已在设置中关闭" : "Review Workbench is disabled in settings",
     menuAnnotDigestDisabled: zh ? "标注→论点速记已在设置中关闭" : "Annotation digest is disabled in settings",
     menuOaFetch: zh ? "开放获取 / Sci-Hub 补全文" : "Find Full Text (OA / Sci-Hub)",

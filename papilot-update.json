@@ -3,6 +3,28 @@
     "papilot@dev.local": {
       "updates": [
         {
+          "version": "0.87.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.87.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "AI 角色与场景参数：新增角色库与「角色 Pill」，单篇/多篇/智能体/任务四个场景可分别覆盖温度与上下文轮数。问答记忆双通道：单篇问答按文章归档，多篇综合对话进左侧栏【AI 对话记录】，支持全文检索、置顶、未读与片段跳转。多设备同步改为会话级合并，并新增「不同步」与上传脱敏。新增文献检索与综述生成。WPS 集成免装 Python（按需下载运行时）。修复：同步完成界面不刷新、旧对话迁移可回滚、会员额度月末边界。"
+        },
+        {
+          "version": "0.86.0",
+          "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.86.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "99.*"
+            }
+          },
+          "whatsNew": "新增「文献检索与综述生成」：按主题/关键词/自定义检索式从 PubMed、Europe PMC、OpenAlex、Crossref、arXiv 批量抓取，跨源去重与打分筛选后生成六段式综述草稿；引用由程序按首次出现编号，并逐句核对数字出处（未命中会列入审计）。"
+        },
+        {
           "version": "0.85.1",
           "update_link": "https://gitee.com/cassiuschen9261/zotero-papilot/raw/main/dist/papilot-0.85.1.xpi",
           "applications": {

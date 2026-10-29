@@ -71,6 +71,7 @@
           { t: zh ? "多篇 PDF 并排对比" : "Compare PDFs", d: zh ? "最多 4 篇并排同屏：横向/纵向/网格布局，同步滚动与缩放，只读预览已有高亮（需选中 2 篇以上）" : "Up to 4 PDFs side by side with synced scroll/zoom (select 2+)", run: () => PP.pdfCompare.runForSelected() },
           { t: zh ? "AI 文献矩阵" : "Literature matrix", d: zh ? "按维度抽取生成对比表格笔记" : "Dimension comparison table", run: () => PP.matrix.forSelected() },
           { t: zh ? "AI 文献综述" : "Literature review", d: zh ? "多篇生成带引用编号的综述段落" : "Review with citation numbers", run: () => PP.reviewGen.forSelected() },
+          { t: zh ? "检索并生成综述" : "Search and synthesize", d: zh ? "PubMed / Europe PMC / OpenAlex / Crossref / arXiv 批量检索 → 去重与打分筛选 → 六段式草稿；引用由程序编号并逐句核对数字出处" : "Batch search across 5 sources, dedupe/screen, six-section draft with program-assigned citations and numeric audit", run: () => PP.litReview.openDialog() },
           { t: zh ? "引文追溯" : "Citation trace", d: zh ? "参考文献/施引文献分析笔记" : "References & citing papers note", run: () => PP.citationTrace.runForSelected() },
           { t: zh ? "参考文献一键入库" : "Import references", d: zh ? "粘贴 DOI/标题/链接/PMID/arXiv/BibTeX 或联合检索五个在线库；自动判重、AI 补全元数据，可导出 BibTeX/EndNote（窗口内还能一键导入当前文献的全部参考文献）" : "Paste DOI/title/URL/PMID/arXiv/BibTeX or joint-search 5 online databases; auto-dedupe + AI metadata completion + BibTeX/EndNote export", run: () => PP.refImport.openDialog() },
           { t: zh ? "分类条目统计" : "Collection stats", d: zh ? "当前分类的条目/附件/标签统计" : "Stats for current collection", run: () => PP.collectionStats.showForSelectedCollection() },

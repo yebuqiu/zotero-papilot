@@ -93,7 +93,7 @@ ok(badExpiry.items[0].expired && !badExpiry.items[0].qrUrl, '非法过期日期�
   const menus = fs.readFileSync(path.join(ROOT, 'chrome/content/scripts/menus.js'), 'utf8');
   ok(xhtml.includes('data-fold="community"'), '设置页含联系与社群折叠卡');
   ok(xhtml.indexOf('data-fold="community"') > xhtml.indexOf('data-fold="cloud"'), '联系与社群位于数据与同步之后');
-  ok(xhtml.includes('23 项 · 8 类'), '工具条计数同步为 23 项 8 类');
+  ok(xhtml.includes('24 项 · 8 类'), '工具条计数同步为 24 项 8 类（0.87.0 +角色卡）');
   ok(panel.includes('textContent') && !panel.includes('innerHTML'), '远程文本只按纯文本渲染');
   ok(panel.includes('MutationObserver') && panel.includes('pp-fold-closed'), '仅展开卡片时触发加载');
   ok(panel.includes('addEventListener("toggle"') && panel.includes('referrerpolicy'), '二维码按需加载且禁止引用来源跟踪');

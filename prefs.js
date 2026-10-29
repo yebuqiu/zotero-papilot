@@ -33,6 +33,34 @@ pref("extensions.zotero.papilot.aiTopP", "");
 pref("extensions.zotero.papilot.aiFullTextMaxChars", 16000);
 // 0.48.0 多轮上下文管理：对话历史滑窗轮数（1-30，默认 6 轮 = 12 条消息）
 pref("extensions.zotero.papilot.aiHistoryRounds", 6);
+// 0.87.0 AI 角色与场景参数（ai/roles.js 单一真源）
+//   aiRoles        用户自定义角色数组（JSON，[{id,name,desc,prompt,params}]）；空 = 只用内置
+//   aiActiveRole   默认角色 id（空 = "scholar"：角色无提示词，等价于旧行为）
+//   aiSceneParams  场景覆盖（JSON，{single,multi,agent,task}）；值留空 = 跟随角色
+//   aiRolePromptMode 角色提示词与 aiSystemPrompt 的关系：append（默认，追加）| replace（覆盖）
+pref("extensions.zotero.papilot.aiRoles", "");
+pref("extensions.zotero.papilot.aiActiveRole", "");
+pref("extensions.zotero.papilot.aiSceneParams", "");
+pref("extensions.zotero.papilot.aiRolePromptMode", "append");
+// 0.87.0 问答记忆双通道（features/chat-memory.js）
+//   chatArchiveNote   单篇问答额外同步为该文献下的一条「Papilot 对话记录」子笔记
+//                     （默认关：写文库会占用 Zotero 官方同步流量，由用户显式开启）
+//   chatMemoryMigrated 旧 chatSessions → 双通道的一次性迁移标记（勿手改）
+//   aiLogPaneEnabled / aiLogPaneCollapsed 左侧栏【AI 对话记录】栏目开关与折叠态
+pref("extensions.zotero.papilot.chatArchiveNote", false);
+pref("extensions.zotero.papilot.chatMemoryMigrated", false);
+pref("extensions.zotero.papilot.aiLogPaneEnabled", true);
+pref("extensions.zotero.papilot.aiLogPaneCollapsed", false);
+// 0.87.0 批次 2/3：隐私分级（排除名单 / 上传脱敏）的 UI 开关。
+// 批次 3 已把上传投影接进 cloud-sync，且**本地指纹取投影后的字节**——
+// 否则「源文件没变、排除名单变了」永远判不出来，云端旧投影永不更新。
+// 关掉它只是隐藏 UI，不影响已记录的排除规则（仍会作用于上传）。
+pref("extensions.zotero.papilot.chatPrivacyUiEnabled", true);
+// 0.87.0 批次 3：两个 chat 数据集改为**会话级合并**（并集 + 前缀延展 + 墓碑），
+// 默认开。出问题时关掉即退回"整文件替换 + 冲突产副本"的旧行为。
+pref("extensions.zotero.papilot.cloudSyncChatMerge", true);
+// 存量会话「已读水位」的一次性初始化标记（勿手改；表空但标记在会自动重跑）
+pref("extensions.zotero.papilot.chatLogSeenInit", false);
 // 0.48.0 Agent 模式（交互参考 Hermes Agent：任务规划 + 工具调用 + 上下文管理）：
 // 总开关默认关（零回归）；工具白名单 CSV；写操作默认逐次确认（协作模式）；
 // 工具调用轮数上限（1-12，防失控）
@@ -79,6 +107,8 @@ pref("extensions.zotero.papilot.searchSubsFeedback", "");
 pref("extensions.zotero.papilot.openAlexApiKey", "");
 // 0.53.0 综述工作台（菜单入口开关）
 pref("extensions.zotero.papilot.reviewWorkbenchEnabled", true);
+// 0.86.0 文献检索与综述生成（菜单入口开关；项目数据落在 <数据目录>/papilot/lit-review/）
+pref("extensions.zotero.papilot.litReviewEnabled", true);
 // 0.48.x 技能包商店（Skills Hub）：已安装记账 / 本地评分 / 目录源（空 = 仅内置目录）
 pref("extensions.zotero.papilot.skillPacksInstalled", "");
 pref("extensions.zotero.papilot.skillPackRatings", "");

@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公网通道 · 项目介绍 | Papilot</title>
+<meta name="description" content="Papilot 公网通道（pp.xinglintools.top）：基于 Cloudflare Tunnel 的项目内自包含出门通道，把本机账号后台安全暴露为公网 HTTPS 服务。">
+<!--
+  ============================================================================
+  公网通道 · 项目介绍页（单文件 / 零外部依赖 / 可直接双击打开）
+  ----------------------------------------------------------------------------
+  维护约定
+  1. 新增章节：复制一个 <section class="sec" id="sec-xxx"> 结构，然后在顶部
+     .nav-links 里加一条 <a href="#sec-xxx">，并把 .scrollspy 的观察逻辑
+     交给现成的 IntersectionObserver（无需改动 JS）。
+  2. 视觉只改 :root 里的设计令牌（颜色 / 圆角 / 间距 / 字号），
+     章节内不要写死颜色值，否则暗色或换色时会漏。
+  3. 本页所有端口、路径、命令、判据均取自仓库真实脚本：
+     scripts/tunnel/tunnel.ps1、scripts/tunnel/refresh-token.ps1、
+     scripts/guard-papilot.ps1、scripts/diag/probe-tunnel.ps1、
+     runtime/cloudflared/README.md。脚本一改，本节同步。
+  4. 不收录任何密钥：token.txt 只提"存在/缺失"，不出现内容。
+  ============================================================================
+-->
+<style>
+  :root{
+    --bg:#f5f7fb;
+    --surface:#ffffff;
+    --surface-2:#fafcff;
+    --ink:#0f1a2b;
+    --ink-2:#42506a;
+    --ink-3:#78859a;
+    --line:#e4eaf3;
+    --line-2:#eef2f8;
+    --brand:#1f5fd0;
+    --brand-ink:#17489e;
+    --brand-soft:#eaf1fd;
+    --teal:#0d8a78;
+    --teal-soft:#e4f4f0;
+    --warn:#9c5d08;
+    --warn-soft:#fdf4e4;
+    --danger:#b8283a;
+    --danger-soft:#fdecee;
+    --radius:14px;
+    --radius-sm:10px;
+    --shadow:0 1px 2px rgba(15,26,43,.05), 0 10px 28px -14px rgba(15,26,43,.18);
+    --shadow-sm:0 1px 2px rgba(15,26,43,.06);
+    --maxw:1120px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font);
+    font-size:16px;
+    line-height:1.72;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--brand);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,pre,kbd{font-family:var(--mono)}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .skip{
+    position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;
+    padding:10px 16px;border-radius:0 0 8px 0;z-index:200;
+  }
+  .skip:focus{left:0}
+
+  /* ---------------- 顶部导航 ---------------- */
+  .hdr{
+    position:sticky;top:0;z-index:100;
+    background:rgba(255,255,255,.86);
+    backdrop-filter:saturate(180%) blur(12px);
+    -webkit-backdrop-filter:saturate(180%) blur(12px);
+    border-bottom:1px solid var(--line);
+  }
+  .hdr-in{
+    max-width:var(--maxw);margin:0 auto;padding:0 24px;
+    height:62px;display:flex;align-items:center;gap:20px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--ink);letter-spacing:.01em;white-space:nowrap}
+  .brand:hover{text-decoration:none}
+  .brand-mark{
+    width:30px;height:30px;border-radius:9px;flex:none;
+    background:linear-gradient(140deg,#2b6ee0,#0d8a78);
+    display:grid;place-items:center;color:#fff;font-size:13px;font-weight:800;
+    box-shadow:0 4px 10px -4px rgba(31,95,208,.6);
+  }
+  .brand small{display:block;font-size:11px;font-weight:500;color:var(--ink-3);letter-spacing:.08em;line-height:1}
+  .brand b{font-size:15px;line-height:1.4}
+  .nav-links{display:flex;align-items:center;gap:2px;margin-left:auto;flex-wrap:nowrap}
+  .nav-links a{
+    position:relative;padding:8px 11px;border-radius:8px;
+    font-size:13.5px;color:var(--ink-2);white-space:nowrap;
+  }
+  .nav-links a:hover{background:var(--line-2);color:var(--ink);text-decoration:none}
+  .nav-links a.active{color:var(--brand);background:var(--brand-soft);font-weight:600}
+  .hdr-live{
+    display:inline-flex;align-items:center;gap:7px;margin-left:6px;
+    padding:6px 11px;border:1px solid var(--line);border-radius:999px;
+    font-size:12.5px;color:var(--ink-2);background:var(--surface);white-space:nowrap;
+  }
+  .hdr-live:hover{border-color:#c9d8ee;text-decoration:none}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px var(--teal-soft)}
+  .menu-btn{
+    display:none;margin-left:auto;width:40px;height:38px;border:1px solid var(--line);
+    background:var(--surface);border-radius:9px;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--ink);
+  }
+  .menu-btn span{display:block;width:16px;height:1.6px;background:currentColor;position:relative}
+  .menu-btn span::before,.menu-btn span::after{
+    content:"";position:absolute;left:0;width:16px;height:1.6px;background:currentColor;
+  }
+  .menu-btn span::before{top:-5px}
+  .menu-btn span::after{top:5px}
+
+  /* ---------------- Hero ---------------- */
+  .hero{
+    position:relative;overflow:hidden;
+    background:
+      radial-gradient(900px 340px at 82% -10%,rgba(31,95,208,.13),transparent 70%),
+      radial-gradient(700px 300px at 8% 0%,rgba(13,138,120,.11),transparent 70%),
+      linear-gradient(180deg,#fff,#f7f9fd 78%,var(--bg));
+    border-bottom:1px solid var(--line);
+  }
+  .hero::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:linear-gradient(var(--line-2) 1px,transparent 1px),linear-gradient(90deg,var(--line-2) 1px,transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask-image:radial-gradient(600px 260px at 70% 20%,#000,transparent 78%);
+    mask-image:radial-gradient(600px 260px at 70% 20%,#000,transparent 78%);
+    opacity:.6;
+  }
+  .hero-in{position:relative;z-index:1;padding-top:66px;padding-bottom:54px}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--brand-ink);font-weight:700;
+    background:var(--brand-soft);border:1px solid #d8e5fb;
+    padding:5px 12px;border-radius:999px;
+  }
+  .hero h1{
+    margin:20px 0 0;font-size:clamp(30px,4.6vw,46px);line-height:1.18;
+    letter-spacing:-.02em;font-weight:800;max-width:19em;
+  }
+  .hero h1 em{
+    font-style:normal;
+    background:linear-gradient(100deg,#1f5fd0,#0d8a78);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p.lead{
+    margin:18px 0 0;max-width:44em;font-size:17px;color:var(--ink-2);
+  }
+  .hero-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:11px 20px;border-radius:10px;font-size:14.5px;font-weight:600;
+    border:1px solid transparent;transition:transform .15s ease,box-shadow .15s ease,background .15s ease;
+  }
+  .btn:hover{text-decoration:none;transform:translateY(-1px)}
+  .btn-primary{background:var(--brand);color:#fff;box-shadow:0 8px 18px -10px rgba(31,95,208,.9)}
+  .btn-primary:hover{background:#1a52b8;box-shadow:0 12px 22px -10px rgba(31,95,208,.95)}
+  .btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:var(--shadow-sm)}
+  .btn-ghost:hover{border-color:#c9d8ee;background:#fbfdff}
+
+  .facts{
+    position:relative;z-index:1;
+    display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+    margin-top:38px;background:var(--surface);
+    border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .fact{padding:18px 20px;border-right:1px solid var(--line-2)}
+  .fact:last-child{border-right:0}
+  .fact dt{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px;font-weight:700}
+  .fact dd{margin:0;font-size:15px;font-weight:650;letter-spacing:-.01em;word-break:break-word}
+  .fact dd small{display:block;font-weight:400;font-size:12.5px;color:var(--ink-3);margin-top:4px;letter-spacing:0}
+
+  /* ---------------- 章节骨架 ---------------- */
+  .sec{padding:76px 0;border-bottom:1px solid var(--line-2);scroll-margin-top:74px}
+  .sec:nth-of-type(even){background:var(--surface-2)}
+  .sec-hd{max-width:50em;margin-bottom:34px}
+  .sec-no{
+    display:inline-block;font-family:var(--mono);font-size:12px;font-weight:700;
+    color:var(--brand);background:var(--brand-soft);
+    padding:2px 9px;border-radius:6px;letter-spacing:.06em;
+  }
+  .sec h2{
+    margin:14px 0 0;font-size:clamp(22px,2.6vw,29px);line-height:1.32;
+    letter-spacing:-.015em;font-weight:780;
+  }
+  .sec .lede{margin:12px 0 0;color:var(--ink-2);font-size:16px}
+  h3{font-size:17px;margin:34px 0 14px;letter-spacing:-.01em;font-weight:720}
+  h3:first-child{margin-top:0}
+  h4{font-size:14.5px;margin:0 0 8px;font-weight:700}
+  p{margin:0 0 14px}
+  .muted{color:var(--ink-2)}
+  .small{font-size:13.5px}
+
+  /* ---------------- 通用卡片 / 网格 ---------------- */
+  .grid{display:grid;gap:16px}
+  .grid > *,.facts > *,.ftr-in > *,.steps > *{min-width:0}
+  .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .card{
+    background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);padding:20px 20px 18px;box-shadow:var(--shadow-sm);
+  }
+  .card h4{display:flex;align-items:center;gap:9px}
+  .card p:last-child{margin-bottom:0}
+  .card p{font-size:14.5px;color:var(--ink-2)}
+  .card .kbd-inline{
+    font-family:var(--mono);font-size:12.5px;background:var(--line-2);
+    padding:1px 6px;border-radius:5px;color:var(--ink);border:1px solid var(--line);
+  }
+  .num-badge{
+    flex:none;width:24px;height:24px;border-radius:7px;
+    display:grid;place-items:center;font-family:var(--mono);font-size:11.5px;font-weight:700;
+    background:var(--brand-soft);color:var(--brand);border:1px solid #d8e5fb;
+  }
+  .feat .num-badge{background:linear-gradient(140deg,#eaf1fd,#e4f4f0);border-color:#d6e7f3;color:var(--brand-ink)}
+
+  /* ---------------- 标签 / 徽标 ---------------- */
+  .tag{
+    display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+    padding:2px 8px;border-radius:999px;border:1px solid transparent;white-space:nowrap;
+    vertical-align:1px;
+  }
+  .tag-b{background:var(--brand-soft);color:var(--brand-ink);border-color:#d8e5fb}
+  .tag-t{background:var(--teal-soft);color:#0a6b5d;border-color:#cbe9e1}
+  .tag-w{background:var(--warn-soft);color:var(--warn);border-color:#f3ddb7}
+  .tag-d{background:var(--danger-soft);color:var(--danger);border-color:#f6cdd3}
+  .tag-n{background:var(--line-2);color:var(--ink-2);border-color:var(--line)}
+
+  /* ---------------- 对照（不是什么） ---------------- */
+  .versus{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+  .versus .card{padding:20px}
+  .versus .card.neg{background:#fdfcfa;border-color:#eee4d6}
+  .versus .card.pos{background:#fbfdff;border-color:#d9e6f8}
+  .versus ul{margin:0;padding-left:0;list-style:none}
+  .versus li{position:relative;padding-left:22px;margin-bottom:9px;font-size:14.5px;color:var(--ink-2)}
+  .versus li:last-child{margin-bottom:0}
+  .versus li::before{
+    position:absolute;left:0;top:0;font-weight:800;font-size:13px;
+  }
+  .versus .neg li::before{content:"—";color:#b3a08a}
+  .versus .pos li::before{content:"›";color:var(--brand)}
+
+  /* ---------------- 表格 ---------------- */
+  .table-wrap{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--surface);overflow:auto;box-shadow:var(--shadow-sm);
+  }
+  table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+  caption{
+    caption-side:top;text-align:left;padding:14px 18px 0;
+    font-size:12.5px;color:var(--ink-3);letter-spacing:.04em;font-weight:600;
+  }
+  th,td{text-align:left;padding:12px 18px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  thead th{
+    background:#f4f7fc;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-3);font-weight:700;position:sticky;top:0;white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:#fafcff}
+  td code,p code,li code,.sx code,.ans code,.step-body code,.f-desc code,.fn-desc code{
+    font-size:12.8px;background:var(--line-2);border:1px solid var(--line);
+    padding:1px 6px;border-radius:5px;color:#12325e;
+    overflow-wrap:break-word;word-break:normal;
+  }
+  .col-k{width:26%;font-weight:650;color:var(--ink);white-space:nowrap}
+
+  /* ---------------- 流程链 ---------------- */
+  .flow{
+    display:flex;align-items:stretch;gap:0;
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--surface);padding:22px 18px;box-shadow:var(--shadow);
+  }
+  .flow-node{flex:1 1 0;min-width:0;padding:0 6px}
+  .flow-node .fn-top{
+    display:flex;align-items:center;gap:7px;margin-bottom:8px;
+  }
+  .fn-idx{
+    font-family:var(--mono);font-size:10.5px;font-weight:700;color:#fff;
+    background:var(--brand);border-radius:5px;padding:1px 6px;line-height:1.6;
+  }
+  .flow-node.dim .fn-idx{background:var(--ink-3)}
+  .fn-title{font-size:14px;font-weight:720;letter-spacing:-.01em}
+  .fn-desc{font-size:12.5px;color:var(--ink-2);line-height:1.6;word-break:break-word}
+  .fn-desc code{font-size:11.5px;padding:0 4px}
+  .flow-arrow{
+    flex:0 0 34px;display:grid;place-items:center;color:#b9c7db;
+  }
+  .flow-arrow svg{width:22px;height:12px;display:block}
+  .flow-note{
+    margin-top:14px;font-size:13px;color:var(--ink-3);
+    display:flex;gap:8px;align-items:flex-start;
+  }
+  .flow-note b{color:var(--ink-2);font-weight:650}
+
+  /* ---------------- 状态语义 ---------------- */
+  .states{display:grid;gap:10px;margin-top:6px}
+  .state{
+    display:flex;align-items:flex-start;gap:12px;
+    padding:13px 16px;border:1px solid var(--line);border-radius:var(--radius-sm);
+    background:var(--surface);
+  }
+  .state .sd{width:9px;height:9px;border-radius:50%;flex:none;margin-top:7px}
+  .state .st{font-size:14px;font-weight:700;margin-bottom:2px}
+  .state .sx{font-size:13px;color:var(--ink-2);line-height:1.6}
+  .s-ok{background:var(--teal-soft)}
+  .s-warn{background:#f0a20e}
+  .s-off{background:#b9c2cf}
+  .state.ok{border-color:#cbe9e1;background:#fbfefd}
+  .state.warn{border-color:#f3ddb7;background:#fffdf8}
+  .state.off{border-color:var(--line);background:var(--surface-2)}
+
+  /* ---------------- 步骤 ---------------- */
+  .steps{counter-reset:s;display:grid;gap:0;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface);box-shadow:var(--shadow-sm)}
+  .step{
+    counter-increment:s;display:grid;grid-template-columns:56px minmax(0,1fr);gap:0;
+    border-bottom:1px solid var(--line-2);
+  }
+  .step:last-child{border-bottom:0}
+  .step::before{
+    content:counter(s,decimal-leading-zero);
+    font-family:var(--mono);font-size:13px;font-weight:700;color:var(--brand);
+    padding:22px 0 0 20px;background:#f8fbfe;border-right:1px solid var(--line-2);
+  }
+  .step-body{padding:20px 22px 20px 20px;min-width:0}
+  .step-body h4{margin-bottom:6px;font-size:15px}
+  .step-body p{font-size:14.3px;color:var(--ink-2);margin-bottom:10px}
+  .step-body p:last-child{margin-bottom:0}
+
+  /* ---------------- 代码块 ---------------- */
+  .code{
+    border:1px solid #16233a;border-radius:11px;overflow:hidden;
+    background:#0f1a2b;margin:12px 0 4px;box-shadow:0 10px 24px -16px rgba(15,26,43,.7);
+  }
+  .code-hd{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 12px;background:#132134;border-bottom:1px solid #1e2e46;
+  }
+  .code-t{
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:#7e93b3;font-weight:700;
+  }
+  /* 代码块内的 code 不套用行内代码的底色/边框 */
+  pre code,.code pre code{
+    background:none;border:0;padding:0;border-radius:0;
+    font-size:inherit;color:inherit;
+  }
+  .copy{
+    margin-left:auto;font-family:var(--font);font-size:11.5px;font-weight:600;
+    color:#a9bcd8;background:#1b2b42;border:1px solid #2a3d59;border-radius:6px;
+    padding:3px 9px;cursor:pointer;transition:.15s;
+  }
+  .copy:hover{background:#243654;color:#dbe7f7}
+  .copy.done{color:#7fe0c6;border-color:#2c5c52;background:#123028}
+  .code pre{
+    margin:0;padding:14px 16px 16px;overflow-x:auto;
+    font-size:12.9px;line-height:1.72;color:#dbe6f5;
+  }
+  .code pre .c{color:#6f86a6}
+  .code pre .k{color:#8fc0ff}
+  .code pre .s{color:#8fe0b8}
+
+  /* ---------------- FAQ ---------------- */
+  .faq{display:grid;gap:10px}
+  details.q{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
+    box-shadow:var(--shadow-sm);overflow:hidden;
+  }
+  details.q[open]{border-color:#cddcf1;box-shadow:var(--shadow)}
+  details.q summary{
+    cursor:pointer;list-style:none;padding:15px 18px;
+    display:flex;align-items:flex-start;gap:11px;
+    font-size:14.8px;font-weight:670;color:var(--ink);
+  }
+  details.q summary::-webkit-details-marker{display:none}
+  details.q summary::after{
+    content:"+";margin-left:auto;flex:none;color:var(--brand);
+    font-weight:700;font-size:17px;line-height:1.2;transition:transform .18s ease;
+  }
+  details.q[open] summary::after{content:"–"}
+  details.q summary:hover{background:#fbfdff}
+  details.q .ans{padding:0 18px 17px 18px;font-size:14.3px;color:var(--ink-2);border-top:1px solid var(--line-2);padding-top:14px}
+  details.q .ans p:last-child{margin-bottom:0}
+  details.q .ans ul{margin:0 0 12px;padding-left:20px}
+  details.q .ans li{margin-bottom:6px}
+
+  /* ---------------- 提示条 ---------------- */
+  .note{
+    display:flex;gap:11px;padding:14px 16px;border-radius:var(--radius-sm);
+    font-size:13.8px;line-height:1.65;border:1px solid;
+  }
+  .note .ni{
+    flex:none;width:18px;height:18px;border-radius:50%;
+    display:grid;place-items:center;margin-top:2px;
+    font-size:11px;font-weight:800;line-height:1;font-style:normal;
+  }
+  .note p{margin:0}
+  .note.info{background:#f4f8ff;border-color:#d9e6f8;color:#28405f}
+  .note.info .ni{background:#d9e6f8;color:#17489e}
+  .note.warn{background:#fffdf6;border-color:#f3e2c0;color:#6b4810}
+  .note.warn .ni{background:#f3e2c0;color:#7a4a0c}
+  .note.danger{background:#fef7f8;border-color:#f6cdd3;color:#7d1f2b}
+  .note.danger .ni{background:#f6cdd3;color:#8d2230}
+  .stack > * + *{margin-top:14px}
+
+  /* ---------------- 页脚 ---------------- */
+  .ftr{background:#0f1a2b;color:#a9b8ce;padding:52px 0 34px;margin-top:0}
+  .ftr a{color:#cfdcf0}
+  .ftr-in{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:32px}
+  .ftr h5{margin:0 0 12px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#6f86a6;font-weight:700}
+  .ftr ul{list-style:none;margin:0;padding:0;font-size:13.6px;line-height:2}
+  .ftr .f-brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:700;font-size:15px}
+  .ftr .f-brand .brand-mark{box-shadow:none}
+  .ftr .f-desc{font-size:13.6px;line-height:1.75;margin:14px 0 0;max-width:34em;color:#8fa1bb}
+  .ftr-bot{
+    margin-top:36px;padding-top:20px;border-top:1px solid #1d2b40;
+    display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;
+    font-size:12.6px;color:#7c8da6;
+  }
+  .ftr-bot code{background:#16233a;border-color:#233248;color:#b7c9e2}
+
+  .to-top{
+    position:fixed;right:20px;bottom:20px;z-index:90;
+    width:40px;height:40px;border-radius:11px;border:1px solid var(--line);
+    background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+    display:grid;place-items:center;color:var(--ink-2);cursor:pointer;
+    box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;
+  }
+  .to-top.show{opacity:1;pointer-events:auto}
+  .to-top:hover{color:var(--brand);border-color:#c9d8ee}
+
+  /* ---------------- 响应式 ---------------- */
+  @media (max-width:1024px){
+    .facts{grid-template-columns:repeat(2,1fr)}
+    .fact:nth-child(2){border-right:0}
+    .fact:nth-child(1),.fact:nth-child(2){border-bottom:1px solid var(--line-2)}
+    .g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .ftr-in{grid-template-columns:1fr 1fr}
+  }
+  @media (max-width:900px){
+    .nav-links{
+      position:absolute;top:62px;left:0;right:0;display:none;
+      flex-direction:column;align-items:stretch;gap:2px;
+      background:var(--surface);border-bottom:1px solid var(--line);
+      padding:10px 16px 16px;box-shadow:0 18px 30px -22px rgba(15,26,43,.5);
+    }
+    .nav-links.open{display:flex}
+    .nav-links a{padding:11px 12px;font-size:14.5px}
+    .hdr-live{margin:8px 0 0;justify-content:center}
+    .menu-btn{display:flex}
+    .sec{padding:60px 0}
+    .flow{flex-direction:column;gap:0;padding:18px 14px}
+    .flow-node{padding:2px 0}
+    .flow-arrow{flex:none;height:26px;transform:rotate(90deg)}
+    .g3{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .versus{grid-template-columns:1fr}
+  }
+  @media (max-width:640px){
+    body{font-size:15.4px}
+    .wrap{padding:0 18px}
+    .hdr-in{padding:0 18px}
+    .hero-in{padding-top:44px;padding-bottom:40px}
+    .hero p.lead{font-size:15.6px}
+    .facts{grid-template-columns:minmax(0,1fr);margin-top:28px}
+    .fact{border-right:0;border-bottom:1px solid var(--line-2);padding:15px 18px}
+    .fact:last-child{border-bottom:0}
+    .g2,.g3,.g4{grid-template-columns:minmax(0,1fr)}
+    .sec{padding:50px 0}
+    .sec-hd{margin-bottom:26px}
+    .step{grid-template-columns:44px minmax(0,1fr)}
+    .step::before{padding:20px 0 0 14px;font-size:12px}
+    .step-body{padding:18px 16px}
+    .ftr-in{grid-template-columns:1fr;gap:24px}
+    .ftr{padding:40px 0 28px}
+    th,td{padding:10px 14px}
+    .to-top{right:14px;bottom:14px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *{transition:none!important;animation:none!important}
+  }
+  @media print{
+    .hdr,.to-top,.menu-btn,.copy,.hero-actions{display:none!important}
+    body{background:#fff}
+    .sec{page-break-inside:avoid;padding:26px 0}
+    .ftr{background:#fff;color:#333}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<!-- ==================== 导航 ==================== -->
+<header class="hdr">
+  <div class="hdr-in">
+    <a class="brand" href="#top">
+      <span class="brand-mark">PP</span>
+      <span>
+        <b>公网通道</b>
+        <small>PAPILOT INFRA</small>
+      </span>
+    </a>
+    <nav class="nav-links" id="navlinks" aria-label="章节导航">
+      <a href="#sec-overview">项目概述</a>
+      <a href="#sec-features">核心特性</a>
+      <a href="#sec-arch">工作原理</a>
+      <a href="#sec-scenes">使用场景</a>
+      <a href="#sec-quick">快速上手</a>
+      <a href="#sec-config">配置说明</a>
+      <a href="#sec-ops">运维诊断</a>
+      <a href="#sec-faq">常见问题</a>
+      <a class="hdr-live" href="https://pp.xinglintools.top/api/health" target="_blank" rel="noopener">
+        <i class="dot"></i>pp.xinglintools.top
+      </a>
+    </nav>
+    <button class="menu-btn" id="menuBtn" aria-label="展开导航" aria-expanded="false" aria-controls="navlinks">
+      <span></span>
+    </button>
+  </div>
+</header>
+
+<!-- ==================== Hero ==================== -->
+<section class="hero" id="top">
+  <div class="wrap hero-in">
+    <span class="eyebrow">Papilot · 基础设施子项目</span>
+    <h1>把本机账号后台，变成<em>随时可达</em>的公网服务</h1>
+    <p class="lead">
+      「公网通道」用 Cloudflare Tunnel 在本机与 Cloudflare 边缘之间拉一条<b>由内向外</b>的加密长连接，
+      把 <code>127.0.0.1:8000</code> 的账号后台映射为 <b>https://pp.xinglintools.top</b>。
+      不需要公网 IP、不需要路由器端口映射、不需要自己签发证书，访问方也不必安装任何客户端——
+      整条链路的依赖随移动硬盘一起走。
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#sec-quick">四步上线 →</a>
+      <a class="btn btn-ghost" href="#sec-ops">分层诊断</a>
+      <a class="btn btn-ghost" href="#sec-faq">排障问答</a>
+    </div>
+  </div>
+  <div class="wrap" style="position:relative;z-index:1;padding-bottom:48px">
+    <dl class="facts">
+      <div class="fact">
+        <dt>公网入口</dt>
+        <dd>pp.xinglintools.top<small>Cloudflare 边缘自动 HTTPS</small></dd>
+      </div>
+      <div class="fact">
+        <dt>回源地址</dt>
+        <dd>127.0.0.1:8000<small>仅监听本机回环，不对外暴露</small></dd>
+      </div>
+      <div class="fact">
+        <dt>健康判据</dt>
+        <dd>readyConnections &gt; 0<small>端口通 ≠ 健康</small></dd>
+      </div>
+      <div class="fact">
+        <dt>诊断层级</dt>
+        <dd>L1 – L6<small>一条命令定位故障层</small></dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<main id="main">
+
+<!-- ==================== 01 项目概述 ==================== -->
+<section class="sec" id="sec-overview">
+  <div class="wrap">
+    <div class="sec-hd">
+      <span class="sec-no">01 / 概述</span>
+      <h2>项目定位：账号体系的「出门通道」</h2>
+      <p class="lede">
+        Papilot 的账号、会员、官方 AI 网关都跑在自己机器的 Node 后台里。后台要能服务任意网络下的
+        Zotero 客户端，就必须有一个稳定的公网入口——这正是公网通道唯一负责的事。
+      </p>
+    </div>
+
+    <div class="grid g2" style="align-items:start">
+      <div class="stack">
+        <p>
+          通道本身<strong>不处理业务</strong>：它不解析账号、不缓存请求、不修改报文，只做一件事——
+          把 Cloudflare 边缘收到的 HTTPS 请求原样转发到本机 <code>127.0.0.1:8000</code>，
+          再把响应原样送回去。业务逻辑全部留在账号后台，通道因此可以长期不动。
+        </p>
+        <p>
+          之所以用隧道而不是「公网 IP + 反向代理」，是因为家用宽带与移动办公场景通常拿不到固定公网 IP，
+          也未必愿意开入站端口。隧道的连接方向是<strong>由本机主动向边缘发起</strong>，
+          于是 NAT、运营商封禁、动态 IP 都不再是问题；域名与证书由 Cloudflare 边缘托管，
+          大陆访问走境外边缘节点，也无需 ICP 备案。
+        </p>
+        <div class="note info">
+          <span class="ni">i</span>
+          <p>
+            判断该不该动这条通道，只需看一个信号：<code>/api/health</code> 能不能从公网取回 <code>{"ok":true}</code>。
+            能，就别碰；不能，按 <a href="#sec-ops">L1–L6</a> 自底向上定位，不要一上来就重启。
+          </p>
+        </div>
+      </div>
+
+      <div class="card" style="padding:22px">
+        <h4><span class="num-badge">≡</span>一页事实表</h4>
+        <div class="table-wrap" style="border:0;box-shadow:none;margin-top:6px">
+          <table style="min-width:0">
+            <tbody>
+              <tr><td class="col-k">项目形态</td><td>Papilot 仓库内的基础设施子项目</td></tr>
+              <tr><td class="col-k">技术底座</td><td>Cloudflare Tunnel（cloudflared，remotely-managed）</td></tr>
+              <tr><td class="col-k">隧道</td><td><code>papilot</code> · <span class="small">a445d5c2-…</span></td></tr>
+              <tr><td class="col-k">协议</td><td>默认 http2 + IPv4，可回退 IPv6 / QUIC</td></tr>
+              <tr><td class="col-k">依赖安装</td><td><span class="tag tag-t">0 项</span> 全部随项目目录携带</td></tr>
+              <tr><td class="col-k">日常权限</td><td>普通用户即可（路由自愈除外）</td></tr>
+              <tr><td class="col-k">对外暴露面</td><td>仅 <code>:8000</code> 一个端口的 HTTP 服务</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <h3>它解决什么，以及它不是什么</h3>
+    <div class="versus">
+      <div class="card neg">
+        <h4>没有它的时候</h4>
+        <ul>
+          <li>后台只活在 <code>127.0.0.1</code>，出了这台机器就登不上账号</li>
+          <li>换到没有公网 IP 的网络，插件立刻「连不上服务器」</li>
+          <li>自建反代要开入站端口、配 DDNS、续证书、还要担心运营商封禁</li>
+          <li>把端口绑到 <code>0.0.0.0</code> 硬顶，等于把管理面直接挂到公网上</li>
+        </ul>
+      </div>
+      <div class="card pos">
+        <h4>有了它之后</h4>
+        <ul>
+          <li>任何网络下都能用同一个账号体系，地址固定不变</li>
+          <li>零入站端口、零端口映射，NAT 后照样可用</li>
+          <li>域名解析与 HTTPS 证书由边缘自动签发、自动续期</li>
+          <li>回源始终是本机回环，公网无法绕过边缘直连后台</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note warn" style="margin-top:16px">
+      <span class="ni">!</span>
+      <p>
+        <b>边界要说清：</b>它不是通用内网穿透工具，也不是 VPN。除账号后台的 8000 端口外，它不转发本机任何其他服务；
+        管理面（<code>/admin</code>）仍只允许本机访问，请勿为了「远程管理」把 admin 也挂到公网域名下。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 02 核心特性 ==================== -->
+<section class="sec" id="sec-features">
+  <div class="wrap">
+    <div class="sec-hd">
+      <span class="sec-no">02 / 特性</span>
+      <h2>九项设计取舍，决定了它为什么「好养」</h2>
+      <p class="lede">
+        这条通道最早依赖用户目录与外部保险库，项目搬进移动硬盘后整链失效、公网 530。
+        重构后的每一条特性，都是对那次故障的直接回答。
+      </p>
+    </div>
+
+    <div class="grid g3 feat">
+      <div class="card">
+        <h4><span class="num-badge">01</span>项目内自包含</h4>
+        <p>
+          <code>cloudflared.exe</code>、令牌、运行器、日志全部收在 <code>runtime/cloudflared/</code>。
+          所有脚本按自身位置反推路径，不写死盘符与用户目录——移动硬盘换机、换盘符，双击即用。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">02</span>幂等启停</h4>
+        <p>
+          <code>start</code> 先查边缘是否已就绪，就绪则直接返回 0 不做改动；
+          <code>stop</code> 本来未运行也返回 0。重复点按钮不会产生第二个进程。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">03</span>连接参数自动兜底</h4>
+        <p>
+          按 <span class="tag tag-n">http2+IPv4</span> → <span class="tag tag-n">http2+IPv6</span> →
+          <span class="tag tag-n">quic+IPv4</span> 依次尝试，每组等 30 秒。
+          换网络后不必手改参数，<code>restart</code> 会自动挑一组能通的。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">04</span>绝不误伤别的隧道</h4>
+        <p>
+          识别进程不看进程名，而是看命令行里是否带本隧道的指标端口 <code>20250</code>。
+          同机并存其他 cloudflared 隧道时，停止操作只结束自己那一个。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">05</span>健康看连接，不看端口</h4>
+        <p>
+          判据是 <code>/ready</code> 返回的 <code>readyConnections</code> 是否大于 0。
+          端口被占用、进程活着但没连上边缘的「假活」状态无处遁形。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">06</span>令牌不进命令行</h4>
+        <p>
+          通过 <code>--token-file token.txt</code> 传递，任务管理器里看不到令牌内容；
+          令牌文件被 <code>.gitignore</code> 排除，刷新时自动备份旧值并校验格式。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">07</span>六层分层诊断</h4>
+        <p>
+          一条命令按 L1→L6 自底向上检查，直接指出"是后台没起、隧道没连、还是本地代理抢答了握手"，
+          退出码 <code>0/1</code> 可接监控，<code>-Json</code> 可被程序消费。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">08</span>守护会自愈，但不瞎重启</h4>
+        <p>
+          守卫先做边缘 TLS 预检：边缘根本不可达时<em>不重启</em>（重启也白搭，只会每分钟 churn 一个进程），
+          而是写下 <code>ALERT</code> 并交给路由自愈去修根本问题。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">09</span>多入口同一判据</h4>
+        <p>
+          根目录 bat、命令行、控制台 GUI、开机自启，四条入口读的是同一个 <code>/ready</code>，
+          不存在"控制台说停了、命令行说在跑"的分裂结论。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 03 工作原理 ==================== -->
+<section class="sec" id="sec-arch">
+  <div class="wrap">
+    <div class="sec-hd">
+      <span class="sec-no">03 / 原理</span>
+      <h2>请求链路：四段，全程不碰入站端口</h2>
+      <p class="lede">
+        客户端发出的是普通 HTTPS 请求；到达本机后，它只是"恰好"从一条加密隧道里出来。
+        链路上没有一段需要你开放防火墙。
+      </p>
+    </div>
+
+    <div class="flow" role="img" aria-label="请求链路：Zotero 客户端 → Cloudflare 边缘 → cloudflared 隧道 → 本机账号后台">
+      <div class="flow-node">
+        <div class="fn-top"><span class="fn-idx">01</span><span class="fn-title">Zotero 客户端</span></div>
+        <div class="fn-desc">插件内置固定地址，发起 HTTPS 请求到 <code>pp.xinglintools.top</code></div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true">
+        <svg viewBox="0 0 22 12" fill="none"><path d="M0 6h18M13 1.5 18.5 6 13 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="flow-node">
+        <div class="fn-top"><span class="fn-idx">02</span><span class="fn-title">Cloudflare 边缘</span></div>
+        <div class="fn-desc">终止 TLS、按 CNAME 找到隧道 <code>papilot</code>，并挑选一个已就绪的 connector</div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true">
+        <svg viewBox="0 0 22 12" fill="none"><path d="M0 6h18M13 1.5 18.5 6 13 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="flow-node">
+        <div class="fn-top"><span class="fn-idx">03</span><span class="fn-title">隧道连接</span></div>
+        <div class="fn-desc">cloudflared 主动连到边缘 <code>:7844</code>，把请求从这条长连接里取回</div>
+      </div>
+      <div class="flow-arrow" aria-hidden="true">
+        <svg viewBox="0 0 22 12" fill="none"><path d="M0 6h18M13 1.5 18.5 6 13 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="flow-node">
+        <div class="fn-top"><span class="fn-idx">04</span><span class="fn-title">账号后台</span></div>
+        <div class="fn-desc">Node 服务在 <code>127.0.0.1:8000</code> 处理业务并原路返回</div>
+      </div>
+    </div>
+    <div class="flow-note">
+      <span>↳</span>
+      <span><b>为什么第 3 段是"取出"而不是"推进"：</b>连接由本机发起并保持，边缘只是把请求写进这条已存在的会话。
+      所以本机在 NAT 后面、IP 每天都在变，都不影响可达性。</span>
+    </div>
+
+    <h3>三段式守护：各自管一件事</h3>
+    <p class="small muted">
+      守护脚本 <code>scripts/guard-papilot.ps1</code> 每分钟运行一次，三段顺序固定，健康时全部静默不写日志。
+    </p>
+    <div class="grid g3">
+      <div class="card">
+        <h4><span class="num-badge">P1</span>账号后台</h4>
+        <p>
+          用 <code>/api/health</code> 判断，而不是 TCP 端口。端口在听但事件循环被堵死时，
+          只有 health 能看出问题；连续 2 次失败才重启，且杀进程前必须确认命令行含
+          <code>account-server.js</code>——8000 被别的程序占用时只记日志不动手。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">P2</span>隧道连接</h4>
+        <p>
+          未就绪时先看两道闸：进程存活不足 90 秒属于"正在连边"，放过；
+          边缘 <code>:7844</code> 的 TLS 都握不上手，则<b>重启无意义</b>，只写 <code>ALERT</code>。
+          两道都过才替换进程。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">P3</span>出口路由</h4>
+        <p>
+          检查是否有 TUN 代理用 <code>0.0.0.0/1</code> 半路由劫持了流量，
+          并把边缘网段 <code>198.41.128.0/17</code> 钉到物理网关（metric 1）。
+          比 <code>/1</code> 更具体，因此只放行边缘、其余照旧走代理。
+        </p>
+      </div>
+    </div>
+
+    <h3>三个状态，三种处置</h3>
+    <p class="small muted">看到状态灯时先对号入座，再决定要不要动手。</p>
+    <div class="states">
+      <div class="state ok">
+        <i class="sd s-ok"></i>
+        <div>
+          <div class="st">就绪 · 运行中（隧道已连接）</div>
+          <div class="sx"><code>readyConnections &gt; 0</code>，公网请求可正常回源。此时唯一正确的操作是<b>什么都不做</b>。</div>
+        </div>
+      </div>
+      <div class="state warn">
+        <i class="sd s-warn"></i>
+        <div>
+          <div class="st">进程在，但未连上边缘</div>
+          <div class="sx">
+            <code>readyConnections = 0</code>，公网必然 530。刚启动时等 10–30 秒属正常；
+            持续如此就跑分层诊断，重点看 L4 是否被本地代理抢答。
+          </div>
+        </div>
+      </div>
+      <div class="state off">
+        <i class="sd s-off"></i>
+        <div>
+          <div class="st">未运行</div>
+          <div class="sx">
+            没有持有 <code>20250</code> 的 cloudflared 进程。若是主动停止（存在
+            <code>runtime/cloudflared/stopped.flag</code>），守护会尊重这个决定、不自动拉起。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 04 使用场景 ==================== -->
+<section class="sec" id="sec-scenes">
+  <div class="wrap">
+    <div class="sec-hd">
+      <span class="sec-no">04 / 场景</span>
+      <h2>什么时候用得上它</h2>
+      <p class="lede">凡是"后台在自己机器上、用户在世界某处"的组合，都落在它的射程内。</p>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <h4><span class="num-badge">A</span>个人跨网络使用</h4>
+        <p>
+          白天在校园网、晚上在咖啡馆、回家换宽带。插件里那个固定域名始终有效，
+          账号、会员状态、AI 用量记录只有一份，不会因为换网络而分叉。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">B</span>移动硬盘随插随用</h4>
+        <p>
+          项目与运行时全在盘里。插到另一台电脑，启动后台再启动通道，同一套账号体系立刻接上——
+          那台电脑不需要装 Node、不需要装 cloudflared、不需要管理员权限。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">C</span>无公网 IP 的家用宽带</h4>
+        <p>
+          没有固定 IP、无法做端口映射、也拿不到 ICP 备案的域名。
+          走隧道后这些前置条件全部消失，只保留一个 Cloudflare 托管的子域。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">D</span>小范围共享与发放</h4>
+        <p>
+          给同事、学生、小团队成员开账号或发激活码。入口是标准 HTTPS，
+          对方无需任何额外配置，也不必知道后台跑在哪台机器上。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">E</span>官方 AI 网关的对外出口</h4>
+        <p>
+          登录用户的 <code>/v1</code> 请求经此通道到达本机网关，密钥留在服务端，
+          客户端永远看不到上游 Key；余额与限流也在这一侧统一裁决。
+        </p>
+      </div>
+      <div class="card">
+        <h4><span class="num-badge">F</span>本机调试与真机验证</h4>
+        <p>
+          需要验证"公网真实链路"而非 <code>localhost</code> 时，通道是最接近生产的环境：
+          同样的 TLS、同样的边缘转发、同样的延迟特征，一条 <code>restart</code> 就能切状态。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 05 快速上手 ==================== -->
+<section class="sec" id="sec-quick">
+  <div class="wrap">
+    <div class="sec-hd">
+      <span class="sec-no">05 / 上手</span>
+      <h2>四步上线，全程零安装</h2>
+      <p class="lede">
+        前提只有一个：项目目录（或整块移动硬盘）原样在手，且
+        <code>runtime/cloudflared/</code> 下的 <code>cloudflared.exe</code> 与 <code>token.txt</code> 都在。
+      </p>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-body">
+          <h4>确认随身三件套在场</h4>
+          <p>
+            打开 <code>runtime/cloudflared/</code>：隧道客户端、令牌文件、运行器缺一不可。
+            目录里另有 <code>logs/</code>（首次运行自动创建）。
+          </p>
+          <div class="code">
+            <div class="code-hd"><span class="code-t">Explorer</span><button class="copy" type="button">复制</button></div>
+<pre><code>runtime\cloudflared\
+├─ cloudflared.exe                      <span class="c"># ~55 MB，随盘携带，不入库</span>
+├─ token.txt                            <span class="c"># 运行凭证，敏感，不入库</span>
+├─ cloudflared-run-papilot.bat          <span class="c"># 单次运行器（可传协议 / edge 版本）</span>
+├─ cloudflared-run-papilot-hidden.vbs   <span class="c"># 无窗启动，供自启 / 守护用</span>
+└─ logs\cf-run-papilot.log              <span class="c"># 超过 20 MB 自动轮换</span></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-body">
+          <h4>启动账号后台（回源先活）</h4>
+          <p>
+            双击根目录 <code>启动Papilot后台.bat</code>，在控制台点「启动后台」。
+            它会拉起 8000 端口的 Node 服务；隧道是"把请求送过去"，回源没起就只会得到 502。
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-body">
+          <h4>启动公网通道</h4>
+          <p>
+            双击根目录 <code>启动公网隧道.bat</code>，或控制台「公网通道」组点「启动通道」。
+            脚本会自动依次尝试三组连接参数，直到边缘连接建立。首连通常 10–30 秒，
+            移动硬盘冷启动可能更慢，<b>状态灯变绿前不要重复点击</b>。
+          </p>
+          <div class="code">
+            <div class="code-hd"><span class="code-t">PowerShell</span><button class="copy" type="button">复制</button></div>
+<pre><code><span class="c"># 等价的命令行方式（四选一）</span>
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\tunnel\tunnel.ps1 start
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\tunnel\tunnel.ps1 status
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\tunnel\tunnel.ps1 stop
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\tunnel\tunnel.ps1 restart</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-body">
+          <h4>从公网验证一次</h4>
+          <p>
+            浏览器打开健康检查地址，返回 <code>{"ok":true,…}</code> 即全线贯通。
+            <code>status</code> 也会顺带跑一次公网自检并打印 HTTP 状态码。
+          </p>
+          <div class="code">
+            <div class="code-hd"><span class="code-t">Shell</span><button class="copy" type="button">复制</button></div>
+<pre><code>curl https://pp.xinglintools.top/api/health
+<span class="c"># → {"ok":true,"version":"…","uptime":…}</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note info" style="margin-top:18px">
+      <span class="ni">i</span>
+      <p>
+        <b>换到新电脑时不用重装任何东西。</b>插盘 → 启动后台 → 启动通道 → 验证，
+        四步与首次完全一致。若 <code>token.txt</code> 丢失或已轮换，见
+        <a href="#sec-config">配置说明 · 令牌轮换</a>。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 06 配置说明 ==================== -->
+<section class="sec" id="sec-config">
+  <div class="wrap">
+    <div class="sec-hd">
+      <span class="sec-no">06 / 配置</span>
+      <h2>固定参数、文件清单与改动边界</h2>
+      <p class="lede">
+        这条通道刻意把大部分参数<strong>钉死</strong>：能改的地方越少，出故障时变量就越少。
+        下表所有值均与仓库脚本一致，改脚本请同步本页。
+      </p>
+    </div>
+
+    <h3>隧道与路由</h3>
+    <div class="table-wrap">
+      <table>
+        <caption>不可随意变更的核心参数</caption>
+        <thead>
+          <tr><th>项</th><th>值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="col-k">隧道</td><td><code>papilot</code><br><span class="small muted">a445d5c2-01e0-4d8b-b704-2b483f393d81</span></td><td>Cloudflare 侧 remotely-managed，ingress 规则在云端管理，改配置无需动本机</td></tr>
+          <tr><td class="col-k">公网域名</td><td><code>https://pp.xinglintools.top</code></td><td>插件内 <code>account.js</code> 的 <code>SERVER_DEFAULT</code> 硬编码此地址，改域名须同步发版</td></tr>
+          <tr><td class="col-k">回源</td><td><code>http://127.0.0.1:8000</code></td><td>账号后台。回源链接入始终只绑回环，<b>不要改成 0.0.0.0</b></td></tr>
+          <tr><td class="col-k">指标端口</td><td><code>127.0.0.1:20250</code></td><td>健康检查入口，同时是"进程归属"的识别指纹</td></tr>
+          <tr><td class="col-k">健康接口</td><td><code>GET /ready</code> → <code>readyConnections</code></td><td>大于 0 才算健康；这是全系统唯一的通道判据</td></tr>
+          <tr><td class="col-k">连接参数</td><td>http2+IPv4 → http2+IPv6 → quic+IPv4</td><td>每组等待 30 秒，任一建连即停止尝试</td></tr>
+          <tr><td class="col-k">边缘地址</td><td><code>region1.v2.argotunnel.com:7844</code></td><td>诊断时用于 TCP + TLS 握手探测，判断出口是否被代理劫持</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>文件与状态</h3>
+    <div class="table-wrap" style="margin-top:4px">
+      <table>
+        <caption>哪些进版本库、哪些只在本机</caption>
+        <thead>
+          <tr><th>路径</th><th>作用</th><th>是否入库</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>runtime/cloudflared/cloudflared.exe</code></td><td>隧道客户端</td><td><span class="tag tag-d">不入库</span> 随盘携带</td></tr>
+          <tr><td><code>runtime/cloudflared/token.txt</code></td><td>隧道运行凭证</td><td><span class="tag tag-d">不入库</span> 敏感，严禁外发</td></tr>
+          <tr><td><code>runtime/cloudflared/logs/</code></td><td>隧道日志，&gt;20 MB 轮换</td><td><span class="tag tag-d">不入库</span></td></tr>
+          <tr><td><code>runtime/cloudflared/*.bat / *.vbs</code></td><td>运行器与无窗启动器</td><td><span class="tag tag-t">入库</span></td></tr>
+          <tr><td><code>runtime/cloudflared/stopped.flag</code></td><td>主动停机标记，存在时守护不自动拉起</td><td><span class="tag tag-d">不入库</span> 运行时生成</td></tr>
+          <tr><td><code>scripts/tunnel/tunnel.ps1</code></td><td>启停与状态管理</td><td><span class="tag tag-t">入库</span></td></tr>
+          <tr><td><code>scripts/diag/probe-tunnel.ps1</code></td><td>L1–L6 分层诊断</td><td><span class="tag tag-t">入库</span></td></tr>
+          <tr><td><code>scripts/guard-papilot.ps1</code></td><td>三段式守护</td><td><span class="tag tag-t">入库</span></td></tr>
+          <tr><td><code>server/data/guard.log</code></td><td>守护日志，2 MB 轮换</td><td><span class="tag tag-d">不入库</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>运维入口：四个位置，同一套判据</h3>
+    <div class="grid g4">
+      <div class="card">
+        <h4>① 根目录 bat</h4>
+        <p><code>启动公网隧道.bat</code> / <code>停止公网隧道.bat</code>，双击即用，带 <code>pause</code> 便于看输出。</p>
+      </div>
+      <div class="card">
+        <h4>② 命令行</h4>
+        <p><code>tunnel.ps1 start|stop|status|restart</code>，可脚本化、可在远程会话里跑。</p>
+      </div>
+      <div class="card">
+        <h4>③ 控制台 GUI</h4>
+        <p>「公网通道」组：启动通道 / 停止通道 / 测试访问 / 通道日志 + 顶部状态灯。</p>
+      </div>
+      <div class="card">
+        <h4>④ 开机自启</h4>
+        <p>HKCU <code>Run</code> 键 <code>PapilotTunnel</code> 指向无窗 <code>.vbs</code>，控制台可一键开关。</p>
+      </div>
+    </div>
+
+    <h3>令牌轮换</h3>
+    <p class="small muted">
+      怀疑泄露，或 Cloudflare 控制台已重新签发令牌时执行。日常启动不需要这一步。
+    </p>
+    <div class="code">
+      <div class="code-hd"><span class="code-t">PowerShell</span><button class="copy" type="button">复制</button></div>
+<pre><code>powershell -NoProfile -ExecutionPolicy Bypass -File scripts\tunnel\refresh-token.ps1
+
+<span class="c"># 行为一：把旧 token.txt 备份为 token.txt.bak-yyyyMMdd-HHmmss</span>
+<span class="c"># 行为二：从 _brain 保险库 tunnel_papilot 节提取（走 --token-file，不进命令行）</span>
+<span class="c"># 行为三：校验长度 &gt; 100 且以 eyJ 开头，不通过则报错退出、不覆盖原文件</span>
+
+<span class="c"># 若 _brain 不在同级目录，用参数或环境变量指定</span>
+powershell -File scripts\tunnel\refresh-token.ps1 -BrainDir D:\_brain</code></pre>
+    </div>
+    <div class="note warn" style="margin-top:12px">
+      <span class="ni">!</span>
+      <p>
+        令牌等同运行凭证。<b>不要提交到 git、不要贴进聊天记录、不要放进截图。</b>
+        轮换的正确姿势是：Cloudflare 控制台重签 → 更新保险库 → 跑一次 <code>refresh-token.ps1</code>，
+        或直接从旧机器复制 <code>token.txt</code>。若曾泄露，先重签再排查访问日志。
+      </p>
+    </div>
+
+    <h3>改动边界：什么能碰，什么别碰</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>改动</th><th>可否</th><th>代价 / 注意</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="col-k">改公网域名</td><td><span class="tag tag-w">需发版</span></td><td>插件里硬编码，必须同步新版本，否则老客户端全部断连</td></tr>
+          <tr><td class="col-k">改回源端口</td><td><span class="tag tag-w">需同改两处</span></td><td>隧道 ingress（云端）+ 账号后台监听端口，缺一即 502</td></tr>
+          <tr><td class="col-k">改指标端口</td><td><span class="tag tag-n">不建议</span></td><td><code>20250</code> 是四份脚本共同的识别指纹，改则须同步全部消费方</td></tr>
+          <tr><td class="col-k">把 8000 绑到 0.0.0.0</td><td><span class="tag tag-d">禁止</span></td><td>Cloudflare 转发头可被直连伪造，管理面随即失守</td></tr>
+          <tr><td class="col-k">公开 <code>/admin</code></td><td><span class="tag tag-d">禁止</span></td><td>管理面只允许本机；远程维护走远程桌面或 SSH 到本机</td></tr>
+          <tr><td class="col-k">调整连接参数顺序</td><td><span class="tag tag-t">可以</span></td><td>改 <code>tunnel.ps1</code> 的 <code>$profiles</code> 数组，注意保持每组 30 秒等待</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 07 运维诊断 ==================== -->
+<section class="sec" id="sec-ops">
+  <div class="wrap">
+    <div class="sec-hd">
+      <span class="sec-no">07 / 运维</span>
+      <h2>公网打不开时，按这个顺序查</h2>
+      <p class="lede">
+        最贵的错误是"先重启"。重启会覆盖现场，让根因再也看不出来。
+        先分层定位，再决定动作。
+      </p>
+    </div>
+
+    <div class="code" style="margin-top:0">
+      <div class="code-hd"><span class="code-t">PowerShell</span><button class="copy" type="button">复制</button></div>
+<pre><code><span class="c"># 一条命令回答"为什么是 530"</span>
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\diag\probe-tunnel.ps1
+
+<span class="c"># 机器可读，便于接入监控或告警</span>
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\diag\probe-tunnel.ps1 -Json
+
+<span class="c"># 退出码：0 = 公网端点健康；1 = L1..L5 中至少一层失败</span></code></pre>
+    </div>
+
+    <h3>六层各看什么</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>层</th><th>检查对象</th><th>失败意味着</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>L1</b></td><td>本机后台 <code>:8000/api/health</code></td><td>回源没起或已经卡死，先解决后台（公网此刻必然 502/530）</td></tr>
+          <tr><td><b>L2</b></td><td>持有 <code>20250</code> 的 cloudflared 进程</td><td>隧道根本没启动，或被人为停下</td></tr>
+          <tr><td><b>L3</b></td><td>边缘就绪 <code>/ready</code> 的 <code>readyConnections</code></td><td>进程在但没连上边缘——公网 530 的直接原因</td></tr>
+          <tr><td><b>L4</b></td><td>主机 → 边缘 <code>:7844</code> 的 TCP + TLS</td><td>出口链路问题。这一层最能区分"本地代理劫持"与"隧道自身故障"</td></tr>
+          <tr><td><b>L5</b></td><td>公网端点 <code>/api/health</code></td><td>链路整体不通，回看前四层</td></tr>
+          <tr><td><b>L6</b></td><td>出口路径是否被 TUN 半路由接管</td><td>存在劫持风险，边缘流量可能正走机场节点</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>最关键的一条判据</h3>
+    <div class="grid g2">
+      <div class="card" style="border-color:#f6cdd3;background:#fefafb">
+        <h4>TCP 在 &lt;5 ms 就"连上"，随后 TLS EOF</h4>
+        <p>
+          说明本地有个 TUN / 代理<b>抢答</b>了握手——真正的边缘还在境外，你连到的只是代理。
+          这种情况下重启隧道一万次也没用。<br>
+          典型场景：Clash 类工具的 TUN 模式吞掉 <code>198.41.128.0/17:7844</code>，
+          而订阅里恰好缺这条网段的直连规则，流量落进兜底的机场节点。
+        </p>
+      </div>
+      <div class="card" style="border-color:#cbe9e1;background:#fbfefd">
+        <h4>TLS 能完成，但 L3 仍为 0</h4>
+        <p>
+          出口是通的，问题在隧道自身：令牌失效、隧道在云端被删、或 cloudflared 侧异常。
+          先看 <code>runtime/cloudflared/logs/cf-run-papilot.log</code> 尾部，
+          再核对令牌是否需要重签。
+        </p>
+      </div>
+    </div>
+
+    <h3>应急修复：绕开 TUN 劫持</h3>
+    <p class="small muted">
+      给边缘网段补一条比 <code>/1</code> 更具体的直连路由。<b>需要管理员权限。</b>
+      守护脚本的 pass 3 会在下一分钟内自动做同样的事，因此手动操作只是应急。
+    </p>
+    <div class="code">
+      <div class="code-hd"><span class="code-t">PowerShell · 管理员</span><button class="copy" type="button">复制</button></div>
+<pre><code><span class="c"># 1) 找到物理网卡的网关与接口索引（默认路由里 metric 最小的那条）</span>
+Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object -First 1
+
+<span class="c"># 2) 把 Cloudflare 边缘段钉到物理网关（/17 比 TUN 的 /1 更具体）</span>
+New-NetRoute -DestinationPrefix '198.41.128.0/17' `
+  -InterfaceIndex &lt;物理网卡 index&gt; -NextHop &lt;物理网关&gt; -RouteMetric 1
+
+<span class="c"># 3) 重启通道，让它重新握手</span>
+powershell -File scripts\tunnel\tunnel.ps1 restart</code></pre>
+    </div>
+    <div class="note info" style="margin-top:12px">
+      <span class="ni">i</span>
+      <p>
+        路由自愈依赖提权，所以若把守护注册为计划任务，<b>必须以最高权限注册</b>，否则 pass 3 会静默失败。
+        此外，<code>PaperPilot Update Tunnel</code> 是更新通道的独立隧道，与本通道无关，排障时别看错。
+      </p>
+    </div>
+
+    <h3>守护日志怎么读</h3>
+    <div class="grid g2">
+      <div class="card">
+        <h4>两个前缀</h4>
+        <p>
+          <code>ALERT:</code> 开头 = 需要人工介入；<code>RECOVERED:</code> 开头 = 已自愈。
+          健康时守护<b>不写任何日志</b>，所以日志"突然有内容"本身就值得看一眼。
+        </p>
+      </div>
+      <div class="card">
+        <h4>看哪几行</h4>
+        <div class="code" style="margin:0">
+          <div class="code-hd"><span class="code-t">PowerShell</span><button class="copy" type="button">复制</button></div>
+<pre><code>Get-Content server\data\guard.log -Tail 10
+Get-ScheduledTask -TaskName 'PapilotGuard' |
+  Select-Object TaskName,State</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 08 常见问题 ==================== -->
+<section class="sec" id="sec-faq">
+  <div class="wrap">
+    <div class="sec-hd">
+      <span class="sec-no">08 / 问答</span>
+      <h2>常见问题</h2>
+      <p class="lede">按"现象 → 先看什么 → 该做什么"组织，尽量让每条都能独立解决。</p>
+    </div>
+
+    <div class="faq">
+      <details class="q" open>
+        <summary>公网打开是 530，怎么办？</summary>
+        <div class="ans">
+          <p>530 的含义是 Cloudflare 找不到健康的 connector，也就是隧道侧的连接没建立起来。按顺序看：</p>
+          <ul>
+            <li>隧道进程在不在：<code>tunnel.ps1 status</code> 第一行；</li>
+            <li>边缘连没连上：同一输出的 <code>readyConnections</code> 是否为 0；</li>
+            <li>边缘本身可不可达：跑 <code>probe-tunnel.ps1</code> 看 L4。</li>
+          </ul>
+          <p>
+            如果只是刚开机，等 10–30 秒再看——移动硬盘冷启动叠加杀软扫描，首连比 SSD 上慢很多。
+            若持续 530，先修 L4（多为本地代理劫持），再谈重启。
+          </p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>公网是 502，跟 530 有什么区别？</summary>
+        <div class="ans">
+          <p>
+            502 说明隧道这条链已经通了——Cloudflare 找到了 connector，也把请求送到了本机，
+            但回源 <code>127.0.0.1:8000</code> 没有应答。<b>问题在账号后台，不在通道。</b>
+          </p>
+          <p>去控制台点「启动后台」，或用 <code>probe-tunnel.ps1</code> 确认 L1 是否 PASS。</p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>状态显示"进程在"但公网还是不通，为什么？</summary>
+        <div class="ans">
+          <p>
+            因为"进程在"和"健康"是两件事。<code>readyConnections = 0</code> 时，进程活着却在边缘挂不上号，
+            公网必然不可达——这正是这套系统<b>不用端口判断健康</b>的原因。
+          </p>
+          <p>
+            常见成因有两个：刚启动还没连上（等 30 秒）；出口被本地代理抢答（跑基线诊断看 L4）。
+            守护脚本同样会先做边缘 TLS 预检，边缘不可达时它<b>故意不重启</b>，避免每分钟 churn 一个进程。
+          </p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>换了个网络就连不上，必须改参数吗？</summary>
+        <div class="ans">
+          <p>
+            不用。跑一次 <code>tunnel.ps1 restart</code> 即可：它会按
+            http2+IPv4 → http2+IPv6 → quic+IPv4 的顺序重试，每组 30 秒。
+            某些 ISP 只放通 IPv6，或 UDP 被限速，这条兜底链就是为这些情况准备的。
+          </p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>插件提示"连不上账号服务器"，先查通道还是先查后台？</summary>
+        <div class="ans">
+          <p>先分叉，别猜。三个地址依次验证：</p>
+          <ul>
+            <li><code>http://127.0.0.1:8000/api/health</code> —— 后台本身活不活（L1）；</li>
+            <li><code>http://127.0.0.1:20250/ready</code> —— 隧道连没连上边缘（L3）；</li>
+            <li><code>https://pp.xinglintools.top/api/health</code> —— 整条链路（L5）。</li>
+          </ul>
+          <p>哪个断就修哪个；三个都通而插件仍报错，问题在客户端侧（地址配置、网络策略、证书时间）。</p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>token.txt 丢了 / 我怀疑泄露了，怎么处理？</summary>
+        <div class="ans">
+          <p>
+            丢失就重新生成：<code>refresh-token.ps1</code> 会从保险库提取、校验格式、覆盖写入，并把旧文件备份成
+            <code>token.txt.bak-时间戳</code>。_brain 不在同级目录时用 <code>-BrainDir</code> 指定。
+          </p>
+          <p>
+            怀疑泄露则顺序反过来：<b>先去 Cloudflare 控制台重签令牌</b>（旧令牌立即作废），再更新保险库、
+            再跑脚本。只换本地文件不重签，等于什么都没做。
+          </p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>会不会影响机器上别的 cloudflared 隧道？</summary>
+        <div class="ans">
+          <p>
+            不会。识别进程的依据是命令行里是否包含 <code>20250</code>，而不是进程名。
+            停止操作只结束匹配到的那个；同机其他隧道（例如更新通道用的那条）不受影响。
+          </p>
+          <p>
+            相应地，<b>不要随手改指标端口</b>——它是这个"只杀自己"能力的唯一依据，改了就失去保护。
+          </p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>为什么开机后要等一会儿才通？</summary>
+        <div class="ans">
+          <p>
+            冷启动有三段延迟叠加：移动硬盘首次读盘、杀毒软件实时扫描 <code>cloudflared.exe</code>、
+            边缘握手本身。从进程 spawn 到 8000 应答十几秒属正常，脚本已经把等待放宽到 25–30 秒。
+          </p>
+          <p>控制台状态灯也做了专门处理：探测只用 1 秒超时、隔几次才真探一次，避免"边缘卡住时 UI 跟着卡死"。</p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>两块移动硬盘都插着，双击提示"已在运行"？</summary>
+        <div class="ans">
+          <p>
+            这不是故障。控制台用单实例互斥量，两块盘上的项目副本共用同一个名字，
+            因此一块盘开着控制台时，从另一块盘启动会被正确拒绝——避免两份副本同时操作同一套服务与数据。
+          </p>
+          <p>需要切换时先关掉当前控制台。注意两份副本的代码可能各自演化，同步请按文件清单复制，不要整目录镜像。</p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>需要备案吗？需要自己的证书吗？</summary>
+        <div class="ans">
+          <p>
+            都不需要。走 Cloudflare Tunnel 不使用境内服务器的入站端口，因此不涉及备案；
+            HTTPS 由 Cloudflare 边缘自动签发与续期，本机到边缘那一段本身就在隧道加密之内，
+            <code>127.0.0.1:8000</code> 上不需要任何证书。
+          </p>
+          <p class="small muted">
+            若未来改为"公网 IP + nginx 直连"，则需自行处理证书、trust proxy 与管理面鉴权——这条通道的很多便利会同时消失。
+          </p>
+        </div>
+      </details>
+
+      <details class="q">
+        <summary>控制台显示"未运行"，命令行却说在跑？</summary>
+        <div class="ans">
+          <p>
+            理论上不该出现：两条入口读的是同一个 <code>/ready</code>。真出现时按这个顺序查：
+          </p>
+          <ul>
+            <li>控制台状态灯有缓存（隔拍刷新），等一个刷新周期再看；</li>
+            <li>安全软件是否拦截了 <code>cloudflared.exe</code> 的指标端口监听；</li>
+            <li>用 <code>tunnel.ps1 status</code> 取一次权威结果，以它为准。</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ==================== 页脚 ==================== -->
+<footer class="ftr">
+  <div class="wrap">
+    <div class="ftr-in">
+      <div>
+        <div class="f-brand"><span class="brand-mark">PP</span>Papilot · 公网通道</div>
+        <p class="f-desc">
+          Papilot 账号体系的基础设施子项目：用 Cloudflare Tunnel 把本机后台安全地
+          送到公网，依赖随盘携带，零安装、零入站端口。
+        </p>
+      </div>
+      <div>
+        <h5>文档章节</h5>
+        <ul>
+          <li><a href="#sec-overview">项目概述</a></li>
+          <li><a href="#sec-features">核心功能与特性</a></li>
+          <li><a href="#sec-arch">架构与工作原理</a></li>
+          <li><a href="#sec-scenes">使用场景</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5>运维入口</h5>
+        <ul>
+          <li><a href="#sec-quick">快速入门</a></li>
+          <li><a href="#sec-config">配置说明</a></li>
+          <li><a href="#sec-ops">分层诊断</a></li>
+          <li><a href="#sec-faq">常见问题</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="ftr-bot">
+      <span>Apache-2.0 · 插件本体永久免费开源 ｜ 页面随仓库维护，最后更新 2026-10-27</span>
+      <span>状态判据 <code>readyConnections &gt; 0</code> · 指标端口 <code>20250</code> · 回源 <code>127.0.0.1:8000</code></span>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" id="toTop" aria-label="回到顶部" type="button">
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M8 13V3.6M3.8 7.4 8 3.2l4.2 4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---- 移动端菜单 ---- */
+  var menuBtn = document.getElementById("menuBtn");
+  var navLinks = document.getElementById("navlinks");
+
+  function closeMenu() {
+    if (!navLinks) return;
+    navLinks.classList.remove("open");
+    if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
+  }
+
+  if (menuBtn && navLinks) {
+    menuBtn.addEventListener("click", function () {
+      var open = navLinks.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    navLinks.addEventListener("click", function (e) {
+      if (e.target.closest("a")) closeMenu();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeMenu();
+    });
+  }
+
+  /* ---- 代码块复制 ---- */
+  document.querySelectorAll(".copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var box = btn.closest(".code");
+      var pre = box && box.querySelector("pre");
+      if (!pre) return;
+      var text = pre.innerText;
+      var settled = false;
+      var done = function () {
+        if (settled) return;
+        settled = true;
+        btn.textContent = "已复制";
+        btn.classList.add("done");
+        setTimeout(function () {
+          btn.textContent = "复制";
+          btn.classList.remove("done");
+        }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
+        /* 某些环境（file:// 或权限被拒）promise 既不 resolve 也不 reject，兜底给一次反馈 */
+        setTimeout(function () { if (!settled) fallback(text, done); }, 500);
+      } else {
+        fallback(text, done);
+      }
+    });
+  });
+
+  function fallback(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch (err) { /* 静默 */ }
+    document.body.removeChild(ta);
+  }
+
+  /* ---- 滚动高亮当前章节 ---- */
+  var links = Array.prototype.slice.call(document.querySelectorAll('.nav-links a[href^="#sec-"]'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute("href").slice(1)] = a; });
+
+  var sections = Array.prototype.slice.call(document.querySelectorAll("main section[id]"));
+  if ("IntersectionObserver" in window && sections.length) {
+    var visible = {};
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { visible[en.target.id] = en.isIntersecting ? en.intersectionRatio : 0; });
+      var bestId = null, best = 0;
+      Object.keys(visible).forEach(function (id) {
+        if (visible[id] > best) { best = visible[id]; bestId = id; }
+      });
+      links.forEach(function (a) { a.classList.remove("active"); });
+      if (bestId && map[bestId]) map[bestId].classList.add("active");
+    }, { rootMargin: "-72px 0px -55% 0px", threshold: [0, 0.15, 0.4, 0.75] });
+    sections.forEach(function (s) { io.observe(s); });
+  }
+
+  /* ---- 回到顶部 ---- */
+  var toTop = document.getElementById("toTop");
+  if (toTop) {
+    var onScroll = function () {
+      if (window.scrollY > 620) toTop.classList.add("show");
+      else toTop.classList.remove("show");
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    toTop.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      closeMenu();
+    });
+  }
+})();
+</script>
+</body>
+</html>

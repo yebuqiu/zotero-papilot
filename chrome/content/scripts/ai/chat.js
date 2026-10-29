@@ -168,8 +168,9 @@ var AIChat = {
    * （对齐 askTask 的口径，用户在浮窗里就标题/摘要追问不至于直接报错）。
    * @param item 条目 @param question 本轮问题 @param history [{role,content}]
    * @param fullText 可选；不传或 null 时自动 getFullText，仍为空则回退 abstractNote
+   * @param {{scene?:string, roleId?:string}=} opts 场景与角色（0.87.0；缺省 single + 全局角色）
    */
-  async buildMessages(item, question, history = [], fullText) {
+  async buildMessages(item, question, history = [], fullText, opts) {
     if (fullText === undefined || fullText === null) {
       fullText = await this.getFullText(item);
     }
@@ -184,9 +185,15 @@ var AIChat = {
       context =
         `【论文摘要】（说明：未获取到该文献的 PDF 全文，请仅基于摘要与题录信息回答，并在开头注明依据有限）\n${abstract}`;
     }
-    const messages = [{ role: "system", content: this._systemWith(meta, context) }];
-    // 0.48.0：历史轮数可配（aiHistoryRounds，默认 6 轮）——多轮上下文管理
-    messages.push(...this.windowHistory(history, Prefs.get("aiHistoryRounds", 6)));
+    const messages = [{ role: "system", content: this._systemWith(meta, context, opts) }];
+    // 0.48.0：历史轮数可配（aiHistoryRounds，默认 6 轮）；0.87.0 起角色/场景可覆盖
+    let rounds = Prefs.get("aiHistoryRounds", 6);
+    try {
+      if (opts && opts.scene && typeof AIRoles !== "undefined" && AIRoles) {
+        rounds = AIRoles.paramsFor(opts.scene, opts.roleId).historyRounds;
+      }
+    } catch (e) { /* 回退全局 */ }
+    messages.push(...this.windowHistory(history, rounds));
     messages.push({ role: "user", content: question });
     return messages;
   },
@@ -196,23 +203,47 @@ var AIChat = {
    * @param item Zotero 常规条目（或其 PDF 附件）
    * @param question 用户问题
    * @param history 之前的对话 [{role, content}]（不含本轮）
+   * @param {{scene?:string, roleId?:string}=} opts 场景与角色（0.87.0；缺省 single + 全局角色）
    */
-  async ask(item, question, history = []) {
+  async ask(item, question, history = [], opts) {
     const fullText = await this.getFullText(item);
     if (!fullText) throw new Error("NO_PDF");
 
+    const scene = (opts && opts.scene) || "single";
+    const roleId = (opts && opts.roleId) || "";
     const meta = this.paperMeta(item);
-    const system = this._systemWith(meta, `【论文全文】\n${fullText}`);
+    const system = this._systemWith(meta, `【论文全文】\n${fullText}`, { scene, roleId });
+
+    let rounds = Prefs.get("aiHistoryRounds", 6);
+    let params;
+    try {
+      if (typeof AIRoles !== "undefined" && AIRoles) {
+        const p = AIRoles.paramsFor(scene, roleId);
+        rounds = p.historyRounds;
+        params = AIRoles.sampleFor(scene, roleId);
+      }
+    } catch (e) { /* 回退全局参数 */ }
 
     const messages = [{ role: "system", content: system }];
-    // 0.48.0：历史轮数可配（aiHistoryRounds，默认 6 轮）——多轮上下文管理
-    messages.push(...this.windowHistory(history, Prefs.get("aiHistoryRounds", 6)));
+    // 0.48.0：历史轮数可配；0.87.0 起角色 / 场景可覆盖
+    messages.push(...this.windowHistory(history, rounds));
     messages.push({ role: "user", content: question });
 
-    return AIClient.chat(messages);
+    return AIClient.chat(messages, params ? { params } : undefined);
   },
 
-  _systemWith(meta, contextBlock) {
+  /**
+   * 单篇路径的 system prompt。
+   * 0.87.0：基础段改由 AIRoles.basePrompt(scene, roleId) 提供——全局 aiSystemPrompt
+   * 与角色提示词按 aiRolePromptMode 合并（append 默认 / replace），画像与长期记忆
+   * 仍在这里追加（它们对所有角色都生效，不能由角色选择关掉）。
+   * @param {object} meta paperMeta() 结果
+   * @param {string} contextBlock 全文/摘要块
+   * @param {{scene?:string, roleId?:string}=} opts 场景与角色（缺省 single + 全局默认角色）
+   */
+  _systemWith(meta, contextBlock, opts) {
+    const scene = (opts && opts.scene) || "single";
+    const roleId = (opts && opts.roleId) || "";
     // 0.38.0： grounding 指令具体化——注明出处位置、区分推断与原文（配合根提示词纪律 2）
     // 0.49.0：研究者画像注入——非空时作为长期语境追加（对所有 _systemWith 调用方生效：
     //         ask/askTask/buildMessages 单篇路径；多 chip 路径在 chat-float 侧单独注入）
@@ -227,13 +258,36 @@ var AIChat = {
         && typeof AgentMemory.asPromptBlock === "function")
         ? String(AgentMemory.asPromptBlock(20) || "").trim() : "";
     } catch (e) { memBlock = ""; }
-    return (Prefs.get("aiSystemPrompt", "") || "") +
+    let base = "";
+    try {
+      base = (typeof AIRoles !== "undefined" && AIRoles && AIRoles.basePrompt)
+        ? AIRoles.basePrompt(scene, roleId)
+        : String(Prefs.get("aiSystemPrompt", "") || "");
+    } catch (e) {
+      try { base = String(Prefs.get("aiSystemPrompt", "") || ""); } catch (e2) { base = ""; }
+    }
+    return base +
       (profile ? "\n\n【研究者画像（长期偏好，回答时应遵守）】\n" + profile : "") +
       (memBlock ? "\n\n【长期记忆（此前对话中确认的事实与偏好）】\n" + memBlock : "") +
       `\n\n当前用户正在阅读以下论文。回答要求：只基于该论文内容；论文未提及的信息明确说明；` +
       `引用论文观点注明位置（章节/图表/摘要）；你的推断与论文原文分开表述。\n` +
       `标题：${meta.title}\n作者：${meta.creators}\n发表：${meta.pub} ${meta.year}\n\n` +
       contextBlock;
+  },
+
+  /**
+   * 设置面板「预览最终提示词」：用示例题录与占位正文跑一遍拼装，
+   * **不发任何网络请求**（用户在改角色前就能看到实际送进模型的开头）。
+   */
+  previewSystem(scene, roleId) {
+    const meta = {
+      title: "（示例）Attention Is All You Need",
+      creators: "Vaswani, A., Shazeer, N., Parmar, N. 等",
+      pub: "NeurIPS",
+      year: "2017",
+    };
+    return this._systemWith(meta,
+      "【论文全文】\n（此处是本轮随消息一起送入模型的正文，预览已省略）", { scene, roleId });
   },
 
   /**
@@ -314,7 +368,8 @@ var AIChat = {
     }
 
     // AI 大模型引擎：原有单轮提示词路径（标题 + 摘要一次翻译，语气/术语更优）
-    const system = Prefs.get("aiSystemPrompt", "") || "";
+    const system = (typeof AIRoles !== "undefined" && AIRoles && AIRoles.basePrompt)
+      ? AIRoles.basePrompt("task") : (Prefs.get("aiSystemPrompt", "") || "");
     if (abstract.trim()) {
       const q =
         "请将以下论文的标题与摘要翻译成中文。要求：学术语气、忠实原文、不增删内容；" +

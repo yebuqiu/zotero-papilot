@@ -35,7 +35,7 @@
       <html:button id="pp-prefs-search-clear" class="pp-search-clear" title="清空搜索" style="display:none;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></html:button>
     </html:div>
     <html:div class="pp-toolbar-actions">
-      <html:span id="pp-pref-count" class="pp-count">23 项 · 8 类</html:span>
+      <html:span id="pp-pref-count" class="pp-count">24 项 · 8 类</html:span>
       <html:button id="pp-recommend" class="pp-btn pp-btn-sm" title="把「推荐项」一次改齐（先列出将要修改的项）">推荐配置</html:button>
       <html:button id="pp-wizard-open" class="pp-btn pp-btn-sm" title="重新运行首次使用向导（登录 / 通道 / 翻译）">首次使用向导</html:button>
       <html:button id="pp-fold-expand" class="pp-btn pp-btn-sm">全部展开</html:button>
@@ -399,7 +399,7 @@
   </html:div>
 
   <!-- ============ 分类 · AI 能力（3 项） ============ -->
-  <html:div class="pp-cat-label"><html:span class="pp-cat-name">AI 能力</html:span><html:span class="pp-cat-count">3 项</html:span></html:div>
+  <html:div class="pp-cat-label"><html:span class="pp-cat-name">AI 能力</html:span><html:span class="pp-cat-count">4 项</html:span></html:div>
   <html:div class="pp-card pp-fold" data-fold="channels" data-search-strings-raw="模型 通道 密钥 厂商 延迟 channel model api key provider">
     <html:div class="pp-fold-head">
       <html:span class="pp-card-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3"/><path d="M15 7V3"/><path d="M6 7h12v4a6 6 0 0 1-12 0V7z"/><path d="M12 17v4"/></svg></html:span><html:span class="pp-card-title">AI 模型通道</html:span>
@@ -680,6 +680,70 @@
   </html:div>
 
   <!-- ============ 分类 · 阅读与翻译（3 项） ============ -->
+  <!-- 0.87.0 AI 角色与问答记忆（roles.js / chat-memory.js）：人设与采样参数按场景分开，
+       单篇问答归档到文章下、多篇综合进左侧栏【AI 对话记录】 -->
+  <html:div class="pp-card pp-fold" data-fold="airoles" data-search-strings-raw="AI 角色 人设 persona 角色提示词 场景 温度 参数 记忆 归档 对话记录 左侧栏 坚果云 role prompt scene temperature memory archive chat log">
+    <html:div class="pp-fold-head">
+      <html:span class="pp-card-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg></html:span><html:span class="pp-card-title">AI 角色与问答记忆</html:span>
+      <html:span class="pp-card-desc">角色 = 人设 + 参数；四个场景各自可覆盖；单篇问答归档到文章下，多篇综合进左侧栏【AI 对话记录】</html:span>
+      <html:span class="pp-fold-arrow">▾</html:span>
+    </html:div>
+    <html:div class="pp-card-body">
+      <html:div id="pp-role-head"></html:div>
+      <html:div class="pp-sub" style="margin-top:12px;">
+        <html:div class="pp-sub-title">角色库</html:div>
+        <html:div class="pp-sub-desc">点选一个角色编辑；内置角色只读，改完点「另存为新角色」保留你自己的版本</html:div>
+        <html:div id="pp-role-chips" class="pp-row" style="margin-top:6px;gap:6px;flex-wrap:wrap;"></html:div>
+        <html:div id="pp-role-editor" style="margin-top:8px;"></html:div>
+      </html:div>
+
+      <html:div class="pp-sub" style="margin-top:12px;">
+        <html:div class="pp-sub-title">场景参数覆盖</html:div>
+        <html:div class="pp-sub-desc">留空 = 跟随角色 / 全局设置；只有填了值才覆盖（优先级：本轮 &gt; 场景 &gt; 角色 &gt; 全局）</html:div>
+        <html:div id="pp-scene-host"></html:div>
+      </html:div>
+
+      <html:div class="pp-sub" style="margin-top:12px;">
+        <html:div class="pp-sub-title">提示词预览</html:div>
+        <html:div class="pp-sub-desc">用示例题录跑一遍拼装（不发任何网络请求），确认角色与全局提示词的实际合并结果</html:div>
+        <html:textarea id="pp-role-preview-out" class="pp-textarea" rows="8" readonly="readonly" style="display:none;margin-top:6px;"></html:textarea>
+      </html:div>
+
+      <html:div class="pp-sub" style="margin-top:12px;">
+        <html:div class="pp-sub-title">问答记忆</html:div>
+        <html:div class="pp-sub-desc">单篇问答按 libraryID:itemKey 归档到该文章下（换机器靠 itemKey 仍然对得上）；多篇综合对话集中存；两者都会随坚果云同步</html:div>
+        <html:label class="pp-check" style="margin-top:6px;">
+          <html:input type="checkbox" id="pp-chat-archive-note"/>
+          <html:span>单篇问答同步为该文献下的一条「Papilot 对话记录」子笔记（同标题覆盖，会占用 Zotero 官方同步流量）</html:span>
+        </html:label>
+        <html:label class="pp-check">
+          <html:input type="checkbox" id="pp-ai-log-pane"/>
+          <html:span>在左侧收藏夹栏底部显示【AI 对话记录】栏目（关掉只是隐藏入口，数据仍在）</html:span>
+        </html:label>
+        <html:div class="pp-sub" id="pp-privacy-group" style="margin-top:10px;display:none;">
+          <html:div class="pp-sub-title">隐私：不出本机的对话</html:div>
+          <html:div id="pp-privacy-box" class="pp-hint">—</html:div>
+          <html:div class="pp-row" style="margin-top:4px;gap:10px;flex-wrap:wrap;align-items:center;">
+            <html:button id="pp-privacy-toggle-item" class="pp-btn pp-btn-sm">当前选中文章：设为不同步</html:button>
+            <html:label class="pp-check"><html:input type="checkbox" id="pp-privacy-redact"/><html:span>上传前脱敏（邮箱 / 手机号 / 本机路径）</html:span></html:label>
+          </html:div>
+          <html:div class="pp-hint" style="margin-top:4px;">标记后，该文献的问答<strong>不会参与云同步上传</strong>（本地照常记录）。云端已有的历史副本不会被删除——如需清除，请在你的 WebDAV 服务（默认坚果云）里手动删除 <code>Papilot/data/papilot-chat-docs.json</code> 与 <code>papilot-chat-multi.json</code>。</html:div>
+        </html:div>
+
+        <html:div class="pp-sub" style="margin-top:10px;">
+          <html:div class="pp-sub-title">旧版对话迁移</html:div>
+          <html:div id="pp-migrate-box" class="pp-hint">—</html:div>
+          <html:div class="pp-row" style="margin-top:4px;">
+            <html:button id="pp-migrate-rollback" class="pp-btn pp-btn-sm">回滚迁移（只撤销迁移进来的记录）</html:button>
+          </html:div>
+        </html:div>
+        <html:div class="pp-row" style="margin-top:6px;">
+          <html:span id="pp-role-msg" class="pp-msg" aria-live="polite"></html:span>
+        </html:div>
+      </html:div>
+    </html:div>
+  </html:div>
+
   <html:div class="pp-cat-label"><html:span class="pp-cat-name">阅读与翻译</html:span><html:span class="pp-cat-count">5 项</html:span></html:div>
   <html:div class="pp-card pp-fold" data-fold="translate" data-search-strings-raw="翻译 引擎 目标语言 源语言 回退 超时 稳定性 自建 离线 translate engine fallback timeout stability local offline">
     <html:div class="pp-fold-head">
@@ -1844,7 +1908,9 @@
         <html:div class="pp-sub-desc">勾选即参与同步；密钥类设置（API Key / 各类密码）永远不会离开本机</html:div>
         <html:div class="pp-row" style="flex-wrap:wrap;gap:14px;margin-top:6px;">
           <html:label class="pp-check"><html:input type="checkbox" id="pp-cloud-ds-settings"/> 设置项</html:label>
-          <html:label class="pp-check"><html:input type="checkbox" id="pp-cloud-ds-chat"/> AI 对话记录</html:label>
+          <html:label class="pp-check"><html:input type="checkbox" id="pp-cloud-ds-chatdocs"/> 按文章归档的对话</html:label>
+          <html:label class="pp-check"><html:input type="checkbox" id="pp-cloud-ds-chatmulti"/> 综合对话记录</html:label>
+          <html:label class="pp-check"><html:input type="checkbox" id="pp-cloud-ds-chat"/> 旧版对话快照（0.86 及以前）</html:label>
           <html:label class="pp-check"><html:input type="checkbox" id="pp-cloud-ds-packs"/> 技能包与安装包</html:label>
         </html:div>
       </html:div>

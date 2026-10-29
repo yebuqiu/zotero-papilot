@@ -4,7 +4,7 @@
 /* Papilot AI 问答侧栏（ItemPane section）
  * 注意：Zotero 7 的 section body 是 XUL 元素，HTML 元素必须用 XHTML 命名空间创建
  */
-/* global Zotero, AIChat, AIClient, I18n, Notes, Prompts, MdLite */
+/* global Zotero, AIChat, AIClient, I18n, Notes, Prompts, MdLite, ChatMemory */
 
 var AIChatPane = {
   PANE_ID: "papilot-ai-chat",
@@ -23,7 +23,7 @@ var AIChatPane = {
 
   _state(paneID) {
     if (!this._panes.has(paneID)) {
-      this._panes.set(paneID, { item: null, history: [], busy: false });
+      this._panes.set(paneID, { item: null, history: [], busy: false, sid: "" });
     }
     return this._panes.get(paneID);
   },
@@ -126,6 +126,7 @@ var AIChatPane = {
         clearBtn.addEventListener("click", () => {
           const s = self._state(paneID);
           s.history = [];
+          s.sid = "";   // 清空 = 结束本场对话，下次落盘另起一条
           self._clearMessages(paneID);
         });
         input.addEventListener("keydown", (ev) => {
@@ -143,11 +144,13 @@ var AIChatPane = {
         if (item && (!st.item || st.item.id !== item.id)) {
           st.item = item;
           st.history = [];
+          st.sid = "";
           self._clearMessages(paneID);
           self._updateTitle(paneID);
         } else if (!item) {
           st.item = null;
           st.history = [];
+          st.sid = "";
           self._clearMessages(paneID);
           self._updateTitle(paneID);
         }
@@ -245,11 +248,13 @@ var AIChatPane = {
       if (statusBubble && statusBubble.parentNode) {
         statusBubble.textContent = I18n.t("chatThinking");
       }
-      const answer = await AIChat.ask(st.item, question, st.history);
+      const answer = await AIChat.ask(st.item, question, st.history, { scene: "single" });
       if (statusBubble) statusBubble.remove();
       this._appendMsg(paneID, "assistant", answer);
       st.history.push({ role: "user", content: question });
       st.history.push({ role: "assistant", content: answer });
+      // 0.87.0：侧栏问答同样归档到该文章下（与浮窗共用同一份 doc 通道）
+      this._archive(paneID);
     } catch (e) {
       if (statusBubble) statusBubble.remove();
       const msg = e && e.message === "NO_PDF" ? I18n.t("chatNoPdf")
@@ -263,6 +268,31 @@ var AIChatPane = {
         st.refs.input.focus();
       }
     }
+  },
+
+  /**
+   * 0.87.0：把当前问答归档到该文章下（ChatMemory 的 doc 通道，与浮窗同一份存储）。
+   * 侧栏是「单篇问答」最典型的入口——不归档的话，用户在这个面板里问过的内容
+   * 在左侧【AI 对话记录】里就看不到，等于两套记忆。
+   * 归档失败一律静默：它不该让一次成功的问答变成报错。
+   */
+  _archive(paneID) {
+    const st = this._state(paneID);
+    if (!st || !this._usable(st.item) || !st.history.length) return;
+    try {
+      if (typeof ChatMemory === "undefined" || !ChatMemory || !ChatMemory.save) return;
+      const saved = ChatMemory.save({
+        sid: st.sid,
+        kind: ChatMemory.KIND_DOC,
+        item: st.item,
+        history: st.history,
+      });
+      if (!saved) return;
+      st.sid = saved.id;
+      if (ChatMemory.archiveToNote) {
+        ChatMemory.archiveToNote(st.item, saved.entry).catch(() => {});
+      }
+    } catch (e) { /* 归档失败不影响问答 */ }
   },
 
   /** 把当前问答历史保存为 Zotero 笔记 */
@@ -302,6 +332,7 @@ var AIChatPane = {
       if (item && this._usable(item) && (!st.item || st.item.id !== item.id)) {
         st.item = item;
         st.history = [];
+        st.sid = "";
         this._updateTitle(paneID);
       }
       st.refs.input.value = `【原文摘录】\n${text}\n\n`;

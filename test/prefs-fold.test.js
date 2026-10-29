@@ -100,7 +100,7 @@ class El {
 /* 信息架构：0.65.0 为 7 类；0.82.0 末尾新增「帮助与社群」，共 8 类 */
 const GROUPS = [
   ['账号与会员', ['account']],
-  ['AI 能力', ['channels', 'aiparams', 'skills']],
+  ['AI 能力', ['channels', 'aiparams', 'skills', 'airoles']],   // 0.87.0 +角色与问答记忆
   ['阅读与翻译', ['translate', 'glossary', 'pdfdual', 'popup', 'pdftheme']],
   ['文献获取', ['cnki', 'thirdsrc', 'subscriptions', 'schedule']],
   ['条目与标签', ['columns', 'tagging', 'enhance']],
@@ -169,7 +169,7 @@ function makeDom() {
   searchClear.setAttribute('id', 'pp-prefs-search-clear');
   const countEl = new El('span');
   countEl.setAttribute('id', 'pp-pref-count');
-  countEl.textContent = '23 项 · 8 类';
+  countEl.textContent = '24 项 · 8 类';
   root.appendChild(searchInput);
   root.appendChild(searchClear);
   root.appendChild(countEl);
@@ -223,7 +223,7 @@ const openCount = (dom) => FOLD_KEYS.filter((k) => isOpen(dom, k)).length;
 /* ---------------- ⑤ 结构体检（纯文本） ---------------- */
 {
   const dom = makeDom();
-  ok(dom.byKey.size === 23, '⑤ 23 张分组卡都建出来了（0.49.0 定时任务 + 0.53.0 检索订阅 + 0.56.0 云同步 + 0.68.1 WPS 集成 + 0.72.4 翻译卡拆三 + 0.73.2 组件管理）', dom.byKey.size);
+  ok(dom.byKey.size === 24, '⑤ 24 张分组卡都建出来了（0.49.0 定时任务 + 0.53.0 检索订阅 + 0.56.0 云同步 + 0.68.1 WPS 集成 + 0.72.4 翻译卡拆三 + 0.73.2 组件管理 + 0.87.0 角色卡）', dom.byKey.size);
   ok(/id="pp-fold-expand"/.test(dom.xhtml) && /id="pp-fold-collapse"/.test(dom.xhtml),
     '⑤ 工具条按钮 #pp-fold-expand / #pp-fold-collapse 存在');
   // 每张卡：pp-fold-head 必须在 pp-card-body 之前（点击区不能包住表单）
@@ -234,8 +234,8 @@ const openCount = (dom) => FOLD_KEYS.filter((k) => isOpen(dom, k)).length;
       'class="pp-card pp-fold" data-fold="' + key + '"[\\s\\S]*?class="pp-fold-head"[\\s\\S]*?class="pp-card-body"');
     ok(re.test(dom.xhtml), '⑤ 卡 ' + key + '：head 在 body 之前');
   }
-  ok((dom.xhtml.match(/class="pp-card pp-fold"/g) || []).length === 23,
-    '⑤ pp-fold 卡恰好 23 张（无裸 pp-card 漏包）');
+  ok((dom.xhtml.match(/class="pp-card pp-fold"/g) || []).length === 24,
+    '⑤ pp-fold 卡恰好 24 张（无裸 pp-card 漏包）');
 }
 
 /* ---------------- ① 初始：默认全收起 ---------------- */
@@ -271,11 +271,11 @@ const openCount = (dom) => FOLD_KEYS.filter((k) => isOpen(dom, k)).length;
   const dom = makeDom();
   const { PrefStore } = runFoldScript(dom);
   dom.expandBtn.click();
-  eq(openCount(dom), 23, '③ 全部展开 → 23 张卡全开');
-  eq(PrefStore.get('extensions.zotero.papilot.prefsFoldOpen').split(',').length, 23,
-    '③ pref 记满 23 键');
+  eq(openCount(dom), 24, '③ 全部展开 → 24 张卡全开');
+  eq(PrefStore.get('extensions.zotero.papilot.prefsFoldOpen').split(',').length, 24,
+    '③ pref 记满 24 键');
   dom.collapseBtn.click();
-  eq(openCount(dom), 0, '③ 全部收起 → 23 张卡全闭');
+  eq(openCount(dom), 0, '③ 全部收起 → 24 张卡全闭');
   eq(PrefStore.get('extensions.zotero.papilot.prefsFoldOpen'), '', '③ pref 清空');
 }
 
@@ -306,7 +306,7 @@ const openCount = (dom) => FOLD_KEYS.filter((k) => isOpen(dom, k)).length;
   const labelHidden = (i) => cls(dom.labels[i]).indexOf(' pp-hidden ') >= 0;
 
   ok(dom.labels.length === 8, '⑦ 8 个大类标签都建出来了', dom.labels.length);
-  ok(dom.byKey.size === 23, '⑦ 23 张卡都在（组间搬家后数量不变）', dom.byKey.size);
+  ok(dom.byKey.size === 24, '⑦ 24 张卡都在（组间搬家后数量不变）', dom.byKey.size);
 
   dom.searchInput.value = '快捷键';
   dom.searchInput.fire('input');
@@ -315,7 +315,7 @@ const openCount = (dom) => FOLD_KEYS.filter((k) => isOpen(dom, k)).length;
   ok(cls(dom.root).indexOf(' pp-searching ') >= 0, '⑦ 根节点进入搜索态（CSS 据此展开命中卡）');
   ok(!labelHidden(5), '⑦ 有命中的大类标签保留（界面与效率）');
   ok(labelHidden(1), '⑦ 组内零命中 → 大类标签一起隐藏（AI 能力）');
-  ok(dom.countEl.textContent.indexOf('/') > 0 && dom.countEl.textContent.indexOf('23') > 0,
+  ok(dom.countEl.textContent.indexOf('/') > 0 && dom.countEl.textContent.indexOf('24') > 0,
     '⑦ 计数显示「命中 / 全部」', dom.countEl.textContent);
   eq(PrefStore.get('extensions.zotero.papilot.prefsFoldOpen'), undefined,
     '⑦ 搜索只切类名，不写折叠 pref');
@@ -325,7 +325,7 @@ const openCount = (dom) => FOLD_KEYS.filter((k) => isOpen(dom, k)).length;
   ok(!hidden('channels') && !hidden('hotkeys'), '⑦ 清空后全部卡片恢复可见');
   ok(cls(dom.root).indexOf(' pp-searching ') < 0, '⑦ 退出搜索态');
   ok(dom.labels.every((l) => cls(l).indexOf(' pp-hidden ') < 0), '⑦ 大类标签全部恢复');
-  eq(dom.countEl.textContent, '23 项 · 8 类', '⑦ 计数恢复原始文案');
+  eq(dom.countEl.textContent, '24 项 · 8 类', '⑦ 计数恢复原始文案');
   eq(dom.searchInput.value, '', '⑦ 清空按钮同时清掉输入框内容');
 }
 

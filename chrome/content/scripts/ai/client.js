@@ -111,8 +111,13 @@ var AIClient = {
   /**
    * 采样参数（0.48.0 起含可选 top_p）：temperature / max_tokens 恒定传入；
    * top_p 仅在用户显式设置时携带（部分网关对未知字段报错，空 = 不传）。
+   *
+   * 0.87.0：接受 `overrides`（来自 AIRoles.paramsFor 的场景/角色参数）。
+   *   · 键不存在 = 沿用全局 pref；
+   *   · `top_p: null` = **明确不传**（覆盖全局，用于「角色要求不启用核采样」）；
+   *   · 其余值做与全局同口径的钳制，防手改 pref 把参数写到非法区间。
    */
-  _sampleParams() {
+  _sampleParams(overrides) {
     const temperature = Number(Prefs.get("aiTemperature", 0.3));
     const out = {
       temperature: isNaN(temperature) ? 0.3 : Math.min(2, Math.max(0, temperature)),
@@ -122,6 +127,25 @@ var AIClient = {
     try { topP = Prefs.get("aiTopP", ""); } catch (e) { topP = ""; }
     const tp = (topP === "" || topP === null || topP === undefined) ? NaN : Number(topP);
     if (!isNaN(tp)) out.top_p = Math.min(1, Math.max(0, tp));
+
+    const o = (overrides && typeof overrides === "object") ? overrides : null;
+    if (o) {
+      if (o.temperature !== undefined && o.temperature !== null) {
+        const t = Number(o.temperature);
+        if (!isNaN(t)) out.temperature = Math.min(2, Math.max(0, t));
+      }
+      if (o.max_tokens !== undefined && o.max_tokens !== null) {
+        const m = Number(o.max_tokens);
+        if (!isNaN(m) && m > 0) out.max_tokens = Math.floor(m);
+      }
+      if ("top_p" in o) {
+        if (o.top_p === null || o.top_p === "") delete out.top_p;
+        else {
+          const v = Number(o.top_p);
+          if (!isNaN(v)) out.top_p = Math.min(1, Math.max(0, v));
+        }
+      }
+    }
     return out;
   },
 
@@ -143,7 +167,7 @@ var AIClient = {
     const payload = {
       model: opts && opts.model ? String(opts.model) : cfg.model,
       messages,
-      ...this._sampleParams(),
+      ...this._sampleParams(opts && opts.params),
       ...(cfg.extraBody || {}),
     };
 
@@ -221,7 +245,7 @@ var AIClient = {
     const payload = {
       model: opts && opts.model ? String(opts.model) : cfg.model,
       messages,
-      ...this._sampleParams(),
+      ...this._sampleParams(opts && opts.params),
       stream: true,
       ...(cfg.extraBody || {}),
     };

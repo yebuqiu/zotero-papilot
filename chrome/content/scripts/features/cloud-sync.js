@@ -72,7 +72,9 @@ var CloudSync = (function () {
     root: "/Papilot",
     policy: "keepBoth",
     direction: "both",
-    datasets: "settings,chatSessions,packages",
+    // 0.87.0：对话记录双通道默认纳入同步（用户明确要求「随坚果云迁移到云端留存」）；
+    // 旧 chatSessions 仍留在默认列表里，用于把历史快照带到新机器后再由迁移逻辑收敛。
+    datasets: "settings,chatSessions,chatDocs,chatMulti,packages",
     autoMinutes: 0,
     maxFileMB: 512,
     largeFileMB: 64,
@@ -100,12 +102,40 @@ var CloudSync = (function () {
     },
     {
       key: "chatSessions",
-      name: "AI 对话记录",
+      name: "AI 对话记录（旧）",
       kind: "file",
       remoteDir: "data",
       localName: "papilot-chat-sessions.json",
       fileName: "papilot-chat-sessions.json",
-      desc: "浮窗/分屏窗口的会话列表（整文件替换）",
+      desc: "0.86 及以前的浮窗会话快照（只读兼容；新记录走下面两个数据集）",
+    },
+    // 0.87.0 双通道记忆：单篇归档与综合对话各自独立成文件——
+    // 一篇论文追问十轮只让 chatDocs 变脏，不会连带把综合对话的 etag 也刷掉。
+    {
+      key: "chatDocs",
+      name: "按文章归档的对话",
+      kind: "file",
+      remoteDir: "data",
+      localName: "papilot-chat-docs.json",
+      fileName: "papilot-chat-docs.json",
+      // 0.87.0 批次 3：会话级合并（并集 + 前缀延展优先 + 墓碑）
+      chatMerge: true,
+      chatScope: "docs",
+      // 上传前做投影：剔除「不同步」的文章 / 脱敏正文（本地文件保持原文）
+      chatPrivacy: true,
+      desc: "单篇问答按 canonical 键归档（会话级合并）",
+    },
+    {
+      key: "chatMulti",
+      name: "综合对话记录",
+      kind: "file",
+      remoteDir: "data",
+      localName: "papilot-chat-multi.json",
+      fileName: "papilot-chat-multi.json",
+      chatMerge: true,
+      chatScope: "multi",
+      chatPrivacy: true,
+      desc: "多篇文献的综合对话（会话级合并）",
     },
     {
       key: "packages",
@@ -133,7 +163,8 @@ var CloudSync = (function () {
     "autoTagCache", "autoTagCacheData", "searchSubsRecoCache", "searchSubsSeen",
     "searchSubsFeedback", "searchSubsRecoDismissed", "discoveryResults", "discoveryLastRun",
     "readingProgress", "readingStats", "agentMemory", "agentAuditLog",
-    "chatSessions", "workbenchSessions", "refPaneCache", "bilingualStructExtract",
+    "chatSessions", "chatDocs", "chatMulti", "workbenchSessions", "refPaneCache",
+    "bilingualStructExtract",
     // 大型数据集
     "rankDataSets", "rankDataSetsM181",
     // 机器相关绝对路径
@@ -556,10 +587,17 @@ var CloudSync = (function () {
       this._abortToken = newAbortToken();
       this._ensuredDirs = {};
       this._indexWriteError = null;
+      // 0.87.0：双通道对话记忆是 500ms 防抖写盘，同步前必须先刷——否则
+      // 扫描读到的是上一轮的旧文件，会判成「云端更新」把刚问的对话又覆盖回去。
+      try {
+        if (typeof ChatMemory !== "undefined" && ChatMemory && ChatMemory.flush) {
+          await ChatMemory.flush();
+        }
+      } catch (eF) { /* 刷盘失败：本轮照常同步，最多漏一轮最新问答 */ }
       var self = this;
       var result = {
         ok: true, startedAt: Date.now(), finishedAt: 0, dryRun: !!opts.dryRun,
-        uploaded: 0, downloaded: 0, skipped: 0, conflicts: 0, failed: 0, deleted: 0,
+        uploaded: 0, downloaded: 0, skipped: 0, conflicts: 0, merged: 0, failed: 0, deleted: 0,
         bytesUp: 0, bytesDown: 0, errors: [], warnings: [], datasets: {},
       };
 
@@ -597,9 +635,25 @@ var CloudSync = (function () {
           try { Prefs.set(K.lastSyncAt, Date.now()); } catch (e) { /* ignore */ }
         }
 
+        // 下载落地后必须刷新内存树：不同步的话用户在左栏看不到云端新数据，
+        // 会直接判定「同步失败」——这比「红点跳一下」严重得多（同步是个单向操作，
+        // 用户点一次就该看到结果）。
+        // 用 withReplacing 包住：合并/替换期间前端抑制未读点刷新，避免闪一屏红点。
+        if (result.downloaded > 0 && !opts.dryRun) {
+          try {
+            if (typeof ChatMemory !== "undefined" && ChatMemory && ChatMemory.reload) {
+              var _rl = function () { return ChatMemory.reload(); };
+              await (ChatMemory.withReplacing ? ChatMemory.withReplacing(_rl) : _rl());
+            }
+          } catch (eR) {
+            result.warnings.push({ dataset: "chatMemory", code: "RELOAD", message: "刷新对话记忆失败：" + (eR && eR.message || eR) });
+          }
+        }
+
         result.finishedAt = Date.now();
         var summary = "上传 " + result.uploaded + " · 下载 " + result.downloaded +
           " · 跳过 " + result.skipped + (result.deleted ? " · 删除 " + result.deleted : "") +
+          (result.merged ? " · 合并 " + result.merged : "") +
           (result.conflicts ? " · 冲突 " + result.conflicts : "") +
           (result.failed ? " · 失败 " + result.failed : "") +
           (result.warnings.length ? " · 告警 " + result.warnings.length : "");
@@ -804,6 +858,15 @@ var CloudSync = (function () {
 
         var d = this.decideAction({ local: l, remote: r, entry: entry, policy: cfg.policy, direction: direction });
 
+        // chat 数据集：用**会话级合并**替代「整文件替换 / 冲突产副本」。
+        // 只在真要动数据时改判（skip 保持 skip；dryRun 保留原判用于预演统计）。
+        // 不做的话，两台机器各自离线问过话后同步，后写的那份会把对方整段记录冲掉。
+        if (ds.chatMerge && !opts.dryRun && (d.action === "download" || d.action === "conflict")) {
+          var mergeOn = true;
+          try { mergeOn = Prefs.get("cloudSyncChatMerge", true) !== false; } catch (eM) { mergeOn = true; }
+          if (mergeOn) d = { action: "merge", reason: "chat-merge" };
+        }
+
         this._progress({
           dataset: ds.key, file: rel, current: i + 1, total: total,
           action: d.action, reason: d.reason,
@@ -839,6 +902,21 @@ var CloudSync = (function () {
             if (ds.kind === "pref") this._rememberSnapshot(index, null, down.snapshot);
             stat.downloaded++; result.downloaded++;
             result.bytesDown += (r && r.size) || 0;
+          } else if (d.action === "merge") {
+            var mg = await this._mergeChatOne(client, cfg, ds, { rel: rel, local: l, remote: r, entry: entry });
+            if (!mg) {
+              // 合并不可用（格式不认识 / 结构异常 / 合并出空）→ 回落 keepBoth：
+              // 宁可多一份副本让用户自己选，也不能悄悄吃掉一侧的数据。
+              var resFb = await this._resolveConflict(client, cfg, ds, { rel: rel, local: l, remote: r, entry: entry, index: index });
+              index.entries[idxKey] = resFb.entry;
+              stat.conflicts++; result.conflicts++;
+              if (resFb.uploaded) { stat.uploaded++; result.uploaded++; }
+              if (resFb.downloaded) { stat.downloaded++; result.downloaded++; }
+            } else {
+              index.entries[idxKey] = mg.entry;
+              stat.merged = (stat.merged || 0) + 1;
+              result.merged = (result.merged || 0) + 1;
+            }
           } else if (d.action === "conflict") {
             var res = await this._resolveConflict(client, cfg, ds, { rel: rel, local: l, remote: r, entry: entry, index: index });
             index.entries[idxKey] = res.entry;
@@ -918,6 +996,122 @@ var CloudSync = (function () {
       if (!entry) return true;
       if (remote.etag && entry.etag) return String(remote.etag) !== String(entry.etag);
       return Number(remote.size) !== Number(entry.size);
+    },
+
+    /**
+     * 生成 chat 数据集的上传投影（0.87.0 批次 3）。
+     * 返回 null 表示"没有需要剔除/脱敏的内容"→ 直接用原文（避免无意义的重排与重传）。
+     * @returns {Promise<{bytes:Uint8Array, hash:string}|null>}
+     */
+    _buildChatProjection: async function (ds, path) {
+      if (typeof ChatPrivacy === "undefined" || !ChatPrivacy || !ChatPrivacy.projectForUpload) return null;
+      try { await ChatPrivacy.ready(); } catch (e0) { /* 读不到排除表 → 按空表处理 */ }
+      var text = "";
+      try { text = await IOUtils.readUTF8(path); } catch (e1) { return null; }
+      if (!text) return null;
+      var parsed = null;
+      try { parsed = JSON.parse(text); } catch (e2) { return null; }
+      var kind = ds.chatScope === "multi" ? "chatMulti" : "chatDocs";
+      var out = ChatPrivacy.projectForUpload(kind, parsed);
+      var droppedDocs = out.dropped && out.dropped.docs ? out.dropped.docs : 0;
+      var droppedSessions = out.dropped && out.dropped.sessions ? out.dropped.sessions : 0;
+      var redacted = out.redacted || 0;
+      if (!droppedDocs && !droppedSessions && !redacted) return null;
+      var projText = (typeof ChatSync !== "undefined" && ChatSync && ChatSync.serialize)
+        ? ChatSync.serialize(out.payload) : JSON.stringify(out.payload);
+      var bytes = encodeText(projText);
+      var hash = await WebDAV.sha256Hex(bytes);
+      return { bytes: bytes, hash: hash };
+    },
+
+    /**
+     * chat 数据集的会话级合并（0.87.0 批次 3）。
+     * 顺序：取云端 → 取本地 → 合并 → 备份本地 → 原子写本地 → PUT 合并结果 → 回填索引。
+     * 任一侧解析失败 → 返回 null（调用方回落 keepBoth，绝不吞数据）。
+     */
+    _mergeChatOne: async function (client, cfg, ds, ctx) {
+      var self = this;
+      var rel = ctx.rel;
+      var remotePath = WebDAV.join(cfg.root, ds.remoteDir, rel);
+      var scope = ds.chatScope === "multi" ? "multi" : "docs";
+      if (typeof ChatSync === "undefined" || !ChatSync || !ChatSync.merge) return null;
+
+      // 云端内容：**只有 404 才当「远端为空」**。网络错误必须上抛——
+      // 把网络失败当成"云端没有"，会把本地一份覆盖上去，等于删掉云端数据。
+      var remoteText = "";
+      try {
+        var res = await this._withRetry(function () {
+          return client.getBuffer(remotePath, { abortToken: self._abortToken });
+        }, "下载 " + rel);
+        remoteText = decodeText(new Uint8Array(res.body || new ArrayBuffer(0)));
+      } catch (e) {
+        if (!(e && (e.code === CODES.NOT_FOUND || e.status === 404))) throw e;
+      }
+
+      var localText = "";
+      try { localText = await IOUtils.readUTF8(ctx.local.localPath); } catch (eR) { localText = ""; }
+
+      var parse = function (t) {
+        if (!t) return scope === "multi" ? [] : {};
+        var v = JSON.parse(t);
+        if (scope === "multi") return Array.isArray(v) ? v : null;
+        return (v && typeof v === "object" && !Array.isArray(v)) ? v : null;
+      };
+      var L = null;
+      var R = null;
+      try { L = parse(localText); } catch (eL) { return null; }
+      try { R = parse(remoteText); } catch (eRm) { return null; }
+      if (L === null || R === null) return null;
+
+      var state = null;
+      try {
+        if (typeof ChatMemory !== "undefined" && ChatMemory && ChatMemory.loadSyncState) {
+          state = await ChatMemory.loadSyncState();
+        }
+      } catch (eS) { state = null; }
+
+      var merged = ChatSync.merge(ds.key, L, R, state);
+      // 保险闸：两侧都有内容却合并出空 → 判失败回落 keepBoth（宁可多副本，不能吃数据）
+      var hadAny = (scope === "multi"
+        ? (L.length + R.length)
+        : (Object.keys(L).length + Object.keys(R).length)) > 0;
+      var gotAny = (scope === "multi"
+        ? merged.payload.length : Object.keys(merged.payload).length) > 0;
+      if (hadAny && !gotAny) return null;
+
+      var text = ChatSync.serialize(merged.payload);
+      var bytes = encodeText(text);
+      var p = ctx.local.localPath;
+
+      try { if (localText) await IOUtils.writeUTF8(p + ".premerge", localText); }
+      catch (eB) { /* 备份失败不阻断合并 */ }
+
+      var tmp = p + ".sytmp";
+      await IOUtils.writeUTF8(tmp, text);
+      await IOUtils.move(tmp, p);
+
+      var putRes = await this._withRetry(function () {
+        return client.put(remotePath, bytes, {
+          ifMatch: ctx.remote ? (ctx.entry && (ctx.entry.etagRaw || ctx.entry.etag)) : "",
+          createOnly: !ctx.remote,
+          contentType: "application/json",
+          abortToken: self._abortToken,
+        });
+      }, "上传 " + rel);
+
+      var hash = await WebDAV.sha256Hex(bytes);
+      return {
+        entry: this._makeEntry(
+          { size: bytes.byteLength, mtime: Date.now() },
+          {
+            size: bytes.byteLength,
+            etag: (putRes && putRes.etag) || "",
+            etagRaw: (putRes && putRes.etagRaw) || "",
+          },
+          hash
+        ),
+        stats: merged.stats,
+      };
     },
 
     _makeEntry: function (local, remote, hash) {
@@ -1097,6 +1291,8 @@ var CloudSync = (function () {
 
     _readLocalBytes: async function (ds, local) {
       if (!local) throw err(CODES.IO, "本地文件不存在");
+      // chat 数据集上传的是**投影**（扫描阶段已算好，见 _buildChatProjection）
+      if (local.projBytes) return local.projBytes;
       if (local.data) return local.data;
       if (!local.localPath) throw err(CODES.IO, "本地文件路径缺失");
       try {
@@ -1624,7 +1820,23 @@ var CloudSync = (function () {
         try {
           var st = await IOUtils.stat(p);
           if (!st || st.type === "directory") return out;
-          out[ds.localName] = { rel: ds.localName, size: Number(st.size) || 0, mtime: Number(st.lastModified) || 0, localPath: p };
+          var rec = {
+            rel: ds.localName, size: Number(st.size) || 0,
+            mtime: Number(st.lastModified) || 0, localPath: p,
+          };
+          // 指纹必须取**投影后**的字节：否则「源文件没变、排除名单变了」判不出来，
+          // 云端的旧投影永远不会更新（用户会以为"我标记了不同步但云端还有"）。
+          if (ds.chatPrivacy) {
+            try {
+              var proj = await this._buildChatProjection(ds, p);
+              if (proj) {
+                rec.size = proj.bytes.byteLength;
+                rec.hash = proj.hash;
+                rec.projBytes = proj.bytes;
+              }
+            } catch (eP) { /* 投影失败 → 退回原文（宁可多传，不能传空） */ }
+          }
+          out[ds.localName] = rec;
         } catch (e) { /* 不存在 = 空 */ }
         return out;
       }
