@@ -138,21 +138,26 @@ def existing_releases():
 def existing_tags():
     """全部 tag。
 
-    ★ 2026-10-27 实踩：`git/refs/tags` **忽略 page 参数**（每页都返回同一批 105 条），
-    原实现用 `len(batch) < 100` 判结束 ⇒ 永远不结束，一次发版白烧 2000+ 次 API 配额
-    （表现为脚本跑 27 分钟无输出、rate_limit 直线下降）。现在按「整页内容重复」收敛。
+    ★ 2026-10-29 实踩（0.85.1）：`git/refs/tags` 在 **fine-grained PAT** 下直接 404
+    （`/repos/{o}/{r}` 与 `/tags` 都是 200，只有 git/refs 被拒 —— 该端点要的权限不在这枚
+    token 的授权面里）。发版因此卡在第一步，白跑一次。改用 REST `/tags`：
+    它返回 `[{name, commit:{sha}}]`，正是这里需要的东西，且 fine-grained token 可直接读。
+
+    保留 2026-10-27 的分页收敛逻辑：`/tags` 分页正常，但仍按「整页内容重复」兜底，
+    免得将来某个代理层又把 page 参数吃掉，一次发版烧光 API 配额。
     """
     out, page, seen = set(), 1, set()
     while True:
-        batch = api("/repos/%s/%s/git/refs/tags?per_page=100&page=%d" % (OWNER, REPO, page))
+        batch = api("/repos/%s/%s/tags?per_page=100&page=%d" % (OWNER, REPO, page))
         if not batch:
             break
-        key = tuple(sorted(r["ref"] for r in batch))
-        if key in seen:          # 该接口不分页时第二页会原样重复
+        key = tuple(sorted(r.get("name", "") for r in batch))
+        if key in seen:          # 不分页的代理会原样重复第二页
             break
         seen.add(key)
         for r in batch:
-            out.add(r["ref"].split("refs/tags/")[-1])
+            if r.get("name"):
+                out.add(r["name"])
         if len(batch) < 100:
             break
         page += 1
